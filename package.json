@@ -1,0 +1,23 @@
+{
+  "name": "expensec",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "node --watch api/index.js"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "vite": "^7.2.4",
+    "vite-plugin-pwa": "^1.2.0",
+    "workbox-window": "^7.4.0"
+  }
+}

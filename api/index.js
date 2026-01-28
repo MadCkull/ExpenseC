@@ -1,0 +1,46 @@
+import express from 'express';
+import cors from 'cors';
+import { initDB } from './database/db.js';
+
+// Routes
+import authRoutes from './routes/auth.js';
+import userRoutes from './routes/users.js';
+import expenseRoutes from './routes/expenses.js';
+import eventsRoutes from './routes/events.js';
+import settingsRoutes from './routes/settings.js';
+
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Initialize DB
+// In Vercel, this runs on cold starts.
+initDB().catch(console.error);
+
+// API Routes
+// Note: Vercel maps /api/* to this file if configured in vercel.json 
+// or if this is api/index.js, it handles /api
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/events', eventsRoutes);
+app.use('/api/settings', settingsRoutes);
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString(), platform: 'vercel-serverless' });
+});
+
+// Export for Vercel
+export default app;
+
+// Local development
+const PORT = process.env.PORT || 3000;
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}

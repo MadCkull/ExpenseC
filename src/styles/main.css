@@ -1,0 +1,331 @@
+@import './variables.css';
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-x pan-y; /* Disable pinch zoom */
+  scrollbar-width: none; /* Hide scrollbar for Firefox */
+  -ms-overflow-style: none; /* Hide scrollbar for IE and Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Hide scrollbar for Chrome, Safari and Opera */
+}
+
+html, body {
+  overflow-x: hidden;
+  position: relative;
+  width: 100%;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--ios-bg);
+  color: var(--ios-text-primary);
+  /* prevent pull-to-refresh on mobile if needed, but usually fine */
+  overscroll-behavior-y: contain; 
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+/* Typography Utilities */
+.text-xs { font-size: var(--font-size-xs); }
+.text-sm { font-size: var(--font-size-sm); }
+.text-md { font-size: var(--font-size-md); }
+.text-lg { font-size: var(--font-size-lg); font-weight: 600; }
+.text-xl { font-size: var(--font-size-xl); font-weight: 700; letter-spacing: 0.3px; }
+.text-xxl { font-size: var(--font-size-xxl); font-weight: 700; letter-spacing: 0.4px; }
+
+.text-secondary { color: var(--ios-text-secondary); }
+.text-blue { color: var(--ios-blue); }
+.text-green { color: var(--ios-green); }
+.text-red { color: var(--ios-red); }
+
+.text-center { text-align: center; }
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Layout Utilities (Container redefined at bottom with safe areas) */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.gap-sm { gap: var(--spacing-sm); }
+.gap-md { gap: var(--spacing-md); }
+
+.user-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+@media (max-width: 360px) {
+  .user-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The variables are managed in variables.css. No need for redundant :root here. */
+
+body {
+  background-color: var(--ios-bg);
+  /* Add subtle gradient mesh background */
+  background-image: 
+      radial-gradient(at 0% 0%, rgba(10, 132, 255, 0.15) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(48, 209, 88, 0.1) 0px, transparent 50%);
+  background-attachment: fixed;
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  margin: 0;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 100vh;
+  user-select: none;
+  -webkit-user-select: none; /* Safari */
+}
+
+.ios-card {
+  background: var(--ios-card-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.ios-btn {
+  background: var(--ios-blue);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 12px 20px;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  width: 100%;
+}
+
+.ios-btn:active {
+  opacity: 0.7;
+}
+
+.ios-btn.secondary {
+  background: rgba(255,255,255,0.1);
+  color: var(--ios-blue);
+}
+
+.ios-btn.destructive {
+  background: rgba(255, 69, 58, 0.15);
+  color: var(--ios-red);
+}
+
+.ios-input {
+  background: rgba(118, 118, 128, 0.24);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  color: white;
+  font-size: var(--font-size-md);
+  width: 100%;
+}
+
+.ios-input:focus {
+  outline: none;
+  background: rgba(118, 118, 128, 0.35);
+}
+
+/* Animations */
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Safe Area and Notch Support */
+.safe-area-top {
+  padding-top: max(16px, env(safe-area-inset-top));
+  padding-bottom: 20px;
+}
+.safe-area-bottom {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+.safe-area-x {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Pull to Refresh */
+.ptr-container {
+  position: relative;
+  will-change: transform;
+}
+
+.ptr-indicator {
+  position: absolute;
+  top: -50px;
+  left: 0;
+  right: 0;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ios-blue);
+  font-size: 20px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1000;
+  transition: opacity 0.2s;
+}
+
+.ptr-indicator.active {
+  opacity: 1;
+}
+
+.ptr-indicator i {
+  display: inline-block;
+  transition: transform 0.1s linear;
+}
+
+.fa-spin-ios {
+  animation: fa-spin-ios 1s infinite linear;
+}
+
+@keyframes fa-spin-ios {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.container {
+  padding-left: max(var(--spacing-md), env(safe-area-inset-left));
+  padding-right: max(var(--spacing-md), env(safe-area-inset-right));
+  /* Ensure pull to refresh indicator isn't hidden by notch */
+  padding-top: max(var(--spacing-md), env(safe-area-inset-top));
+  padding-bottom: max(var(--spacing-md), env(safe-area-inset-bottom));
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+
+/* Custom Styles */
+.User-list-item {
+  padding: 12px;
+}
+.popup-header {
+    margin-bottom: 40px;
+}
+
+.pt-selection-card:active {
+  transform: scale(0.98);
+}
+
+.selected {
+  background: rgba(10, 132, 255, 0.08) !important;
+}
+
+/* 1. Target Chrome, Safari, Edge, and Opera */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none; /* Removes the default styling */
+  margin: 0; /* Removes default margin in some browsers */
+}
+
+/* 2. Target Firefox */
+input[type="number"] {
+  -moz-appearance: textfield; /* Removes the spinner in Firefox */
+}
+
+/* Segmented Control (iOS Tabs) */
+.segmented-control {
+  background: rgba(255, 255, 255, 0.08); /* Dark background for the track */
+  border-radius: 12px;
+  padding: 4px;
+  display: flex;
+  margin-bottom: 24px;
+}
+
+.flatpickr-calendar {
+  border-radius: 15px !important;
+}
+
+.flatpickr-calendar, .flatpickr-months, .flatpickr-month, .flatpickr-current-month, .flatpickr-next-month, .flatpickr-prev-month, .flatpickr-monthDropdown-months, .flatpickr-monthDropdown-month, .flatpickr-innerContainer, .flatpickr-rContainer, .flatpickr-weekdays, .flatpickr-weekday, .flatpickr-days, .flatpickr-day, .flatpickr-weekdaycontainer, .dayContainer {
+  background: var(--ios-card-bg) !important;
+}
+
+.flatpickr-day.startRange, .flatpickr-day.inRange, .flatpickr-day.endRange {
+  color: rgb(157, 156, 251) !important;
+  border: 0px !important;
+  background: #2c2c2c !important;
+  box-shadow: -5px 0 0 #2c2c2c, 5px 0 0 #2c2c2c !important;
+}
+
+.fa-regular.fa-circle.text-secondary.opacity-20.text-lg {
+  display: none;
+}
+
+/* Swipe to Delete Styles */
+.swipe-item-container {
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  touch-action: pan-y;
+}
+
+.swipe-item-content {
+  position: relative;
+  z-index: 2;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.swipe-item-actions {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 13px 13px 0;
+}
+
+
+/* ---------------------------- */
+.segmented-control button.segment {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-radius: 9px;
+  color: var(--ios-text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.1, 0.7, 0.1, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.segmented-control button.segment.active {
+  background: rgba(255, 255, 255, 0.15); /* Glass slider effect */
+  color: white;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  backdrop-filter: blur(10px);
+}

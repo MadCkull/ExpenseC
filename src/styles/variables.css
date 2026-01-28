@@ -1,0 +1,43 @@
+:root {
+  /* iOS 18 Dark Theme Colors */
+  --ios-bg: #000000;
+  --ios-card-bg: rgba(28, 28, 30, 0.6);
+  --ios-card-bg-solid: #1c1c1e;
+  --ios-text-primary: #ffffff;
+  --ios-text-secondary: #8e8e93;
+  --ios-blue: #0A84FF;
+  --ios-green: #30D158;
+  --ios-red: #FF453A;
+  --ios-gray: #1C1C1E;
+  --ios-separator: rgba(84, 84, 88, 0.65);
+  
+  /* Glassmorphism */
+  --glass-blur: blur(20px);
+  --glass-border: 0.5px solid rgba(255, 255, 255, 0.1);
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* Typography */
+  --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 17px;
+  --font-size-lg: 20px;
+  --font-size-xl: 28px;
+  --font-size-xxl: 34px;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px; /* iOS Card Radius */
+  --radius-full: 999px;
+
+  /* Transitions */
+  --transition-fast: 0.2s ease;
+  --transition-spring: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
