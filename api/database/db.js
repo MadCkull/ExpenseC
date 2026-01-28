@@ -1,17 +1,18 @@
 import { createClient } from '@libsql/client';
 import bcrypt from 'bcryptjs';
 
-// For local development, it will look for TURSO_DATABASE_URL in environment.
-// On Vercel, this will be set in the dashboard.
 const db = createClient({
   url: process.env.TURSO_DATABASE_URL || "file:expensec.db",
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
+let isInitialized = false;
+
 // Initialize Database Schema
 export async function initDB() {
+  if (isInitialized) return;
+  
   try {
-    // We use individual executions for Schema
     await db.execute(`
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
@@ -57,7 +58,7 @@ export async function initDB() {
       );
     `);
 
-    // Insert default PINs if not exist
+    // Insert default PINs
     const adminPinScan = await db.execute("SELECT value FROM settings WHERE key = 'admin_pin'");
     if (adminPinScan.rows.length === 0) {
       const hashedAdmin = await bcrypt.hash('6869', 10);
@@ -65,7 +66,6 @@ export async function initDB() {
         sql: "INSERT INTO settings (key, value) VALUES ('admin_pin', ?)",
         args: [hashedAdmin]
       });
-      console.log("Default Admin PIN initialized (hashed)");
     }
 
     const userPinScan = await db.execute("SELECT value FROM settings WHERE key = 'user_pin'");
@@ -75,10 +75,13 @@ export async function initDB() {
         sql: "INSERT INTO settings (key, value) VALUES ('user_pin', ?)",
         args: [hashedUser]
       });
-      console.log("Default User PIN initialized (hashed)");
     }
+
+    isInitialized = true;
+    console.log("Database initialized successfully");
   } catch (err) {
     console.error("Database initialization failed:", err);
+    throw err; // Re-throw so the caller knows it failed
   }
 }
 

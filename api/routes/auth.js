@@ -1,6 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
-import db from '../database/db.js';
+import db, { initDB } from '../database/db.js';
 
 const router = express.Router();
 
@@ -9,8 +9,15 @@ router.post('/login', async (req, res) => {
     const { pin } = req.body;
     if (!pin) return res.status(400).json({ error: 'PIN is required' });
 
+    // Force DB initialization before checking PINs
+    await initDB();
+
     const settings = await db.execute("SELECT key, value FROM settings WHERE key IN ('admin_pin', 'user_pin')");
     
+    if (settings.rows.length === 0) {
+      return res.status(500).json({ error: "Database settings missing. Please refresh and try again." });
+    }
+
     let adminPinHash = '';
     let userPinHash = '';
     
@@ -28,7 +35,7 @@ router.post('/login', async (req, res) => {
     }
   } catch (err) {
     console.error("Login error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Internal server error: " + err.message });
   }
 });
 
