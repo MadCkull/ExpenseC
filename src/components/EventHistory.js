@@ -5,6 +5,10 @@ export function createEventHistory({ onBack, onSelectEvent }) {
   const container = document.createElement('div');
   container.className = 'dashboard container fade-in safe-area-bottom ptr-container';
   
+  const scrollWrapper = document.createElement('div');
+  scrollWrapper.className = 'scrollable-content';
+  container.appendChild(scrollWrapper);
+  
   let state = {
     loading: true,
     history: []
@@ -22,7 +26,7 @@ export function createEventHistory({ onBack, onSelectEvent }) {
 
     if (state.loading) {
        html += '<div class="text-center p-8 text-secondary">Loading...</div>';
-       container.innerHTML = html;
+       scrollWrapper.innerHTML = html;
        container.querySelector('#back-btn').addEventListener('click', onBack);
        return;
     }
@@ -52,7 +56,7 @@ export function createEventHistory({ onBack, onSelectEvent }) {
          html += '</div>';
      }
     
-    container.innerHTML = html;
+    scrollWrapper.innerHTML = html;
     
     container.querySelector('#back-btn').addEventListener('click', onBack);
     
@@ -77,7 +81,7 @@ export function createEventHistory({ onBack, onSelectEvent }) {
   };
   
   load();
-  initPullToRefresh(container, load);
+  initPullToRefresh(scrollWrapper, load);
 
   return container;
 }

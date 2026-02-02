@@ -1,10 +1,15 @@
 import { api } from '../utils/api.js';
 import { initPullToRefresh } from '../utils/pullToRefresh.js';
 import { renderAvatar } from '../utils/ui.js';
+import { createImageViewer } from './ImageViewer.js';
 
 export function createAdminDashboard({ onBack }) {
   const container = document.createElement('div');
   container.className = 'dashboard container fade-in safe-area-bottom ptr-container';
+  
+  const scrollWrapper = document.createElement('div');
+  scrollWrapper.className = 'scrollable-content';
+  container.appendChild(scrollWrapper);
   
   let state = {
     users: [],
@@ -33,7 +38,7 @@ export function createAdminDashboard({ onBack }) {
 
     if (state.loading) {
        html += '<div class="text-center p-8 text-secondary">Loading...</div>';
-       container.innerHTML = html;
+       scrollWrapper.innerHTML = html;
        container.querySelector('#back-btn').addEventListener('click', onBack);
        return;
     }
@@ -153,9 +158,18 @@ export function createAdminDashboard({ onBack }) {
       }
     }
 
-    container.innerHTML = html;
+    scrollWrapper.innerHTML = html;
     
     // Listeners
+    container.addEventListener('click', (e) => {
+        const avatar = e.target.closest('.avatar img');
+        if (avatar) {
+             e.stopPropagation();
+             createImageViewer(avatar.src);
+             return;
+        }
+    });
+
     container.querySelector('#back-btn').addEventListener('click', onBack);
     container.querySelector('#view-users').addEventListener('click', () => { state.view = 'users'; render(); });
     container.querySelector('#view-events').addEventListener('click', () => { state.view = 'events'; render(); });
@@ -596,7 +610,7 @@ export function createAdminDashboard({ onBack }) {
   };
 
   init();
-  initPullToRefresh(container, init);
+  initPullToRefresh(scrollWrapper, init);
 
   return container;
 }

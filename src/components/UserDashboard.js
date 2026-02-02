@@ -1,10 +1,16 @@
 import { api } from '../utils/api.js';
 import { initPullToRefresh } from '../utils/pullToRefresh.js';
 import { renderAvatar } from '../utils/ui.js';
+import { createImageViewer } from './ImageViewer.js';
 
 export function createUserDashboard({ role, onLogout }) {
   const container = document.createElement('div');
   container.className = 'dashboard container fade-in safe-area-bottom ptr-container';
+  
+  // Use scrollable-inner wrapper for content to fix overflow
+  const scrollWrapper = document.createElement('div');
+  scrollWrapper.className = 'scrollable-content';
+  container.appendChild(scrollWrapper);
   
   let state = {
     expenses: [],
@@ -18,13 +24,13 @@ export function createUserDashboard({ role, onLogout }) {
 
   const render = () => {
     if (state.loading) {
-      container.innerHTML = '<div class="text-center p-8 text-secondary">Loading...</div>';
+      scrollWrapper.innerHTML = '<div class="text-center p-8 text-secondary">Loading...</div>';
       return;
     }
 
     if (!state.currentUserId && role !== 'admin' && state.expenses.length > 0) {
         showIdentificationModal();
-        container.innerHTML = '<div class="text-center p-8 text-secondary">Please select your name above.</div>';
+        scrollWrapper.innerHTML = '<div class="text-center p-8 text-secondary">Please select your name above.</div>';
         return;
     }
 
@@ -74,7 +80,7 @@ export function createUserDashboard({ role, onLogout }) {
       <div style="height: 100px;"></div>
     `;
 
-    container.innerHTML = html;
+    scrollWrapper.innerHTML = html;
     attachListeners();
   };
 
@@ -172,6 +178,16 @@ export function createUserDashboard({ role, onLogout }) {
   };
 
   const attachListeners = () => {
+    // Avatar Lightbox Delegation
+    container.addEventListener('click', (e) => {
+        const avatar = e.target.closest('.avatar img');
+        if (avatar) {
+            e.stopPropagation();
+            createImageViewer(avatar.src);
+            return;
+        }
+    });
+
     container.querySelector('#logout-btn')?.addEventListener('click', onLogout);
     container.querySelector('#current-username')?.addEventListener('click', showIdentificationModal);
     container.querySelector('#history-btn')?.addEventListener('click', () => {
@@ -263,10 +279,12 @@ export function createUserDashboard({ role, onLogout }) {
 
       const marginClass = isInsideModal ? '' : 'mb-6';
       const background = isInsideModal ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.03)';
+      const headerText = isInsideModal ? '' : '<h3 class="text-xs text-secondary mb-3 uppercase tracking-widest px-1 font-bold">Suggestions</h3>';
 
       if (myDebts.length === 0 && myCredits.length === 0) {
           return `
-            <div class="ios-card mb-6 fade-in" style="background: rgba(48, 209, 88, 0.1); border: 1px solid rgba(48, 209, 88, 0.2); padding: 16px;">
+            ${headerText}
+            <div class="ios-card ${marginClass} fade-in" style="background: rgba(48, 209, 88, 0.1); border: 1px solid rgba(48, 209, 88, 0.2); padding: 16px;">
                <div class="flex items-center gap-md">
                   <div style="font-size: 24px;">🎉</div>
                   <div>
@@ -279,30 +297,51 @@ export function createUserDashboard({ role, onLogout }) {
       }
 
       return `
-        <div class="ios-card ${marginClass} fade-in" style="background: ${background}; border: 1px solid rgba(255,255,255,0.05); padding: 18px 22px;">
-           <div class="flex flex-col gap-sm">
-              ${myDebts.map(s => `
-                 <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-sm">
-                       <span class="text-[13px] font-medium opacity-60">You owe</span>
-                       ${renderAvatar({ name: s.to.name, avatar: s.to.avatar }, 28)}
-                       <span class="text-sm font-bold text-white">${s.to.name}</span>
+        ${headerText}
+        <div class="flex flex-col gap-sm ${marginClass}">
+            ${myDebts.map(s => `
+                <div class="ios-card fade-in flex items-center" style="background: rgba(255, 69, 58, 0.1); border: 1px solid rgba(255, 69, 58, 0.2); padding: 12px 16px; margin-bottom: 0;">
+                    
+                    <!-- Left: Message -->
+                    <div style="flex: 1; text-align: left;">
+                         <span class="text-[11px] uppercase font-bold text-red opacity-80 tracking-wider">Pay to</span>
                     </div>
-                    <span class="text-md font-bold" style="color: #FF3B30;">£${s.amount.toFixed(2)}</span>
-                 </div>
-              `).join('')}
-              
-              ${myCredits.map(s => `
-                 <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-sm">
-                       ${renderAvatar({ name: s.from.name, avatar: s.from.avatar }, 28)}
-                       <span class="text-sm font-bold text-white">${s.from.name}</span>
-                       <span class="text-[13px] font-medium opacity-60">owes you</span>
+
+                    <!-- Center: User -->
+                    <div style="flex: 0 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                        ${renderAvatar({ name: s.to.name, avatar: s.to.avatar }, 32)}
+                        <span class="text-[11px] font-bold text-white leading-tight">${s.to.name}</span>
                     </div>
-                    <span class="text-md font-bold" style="color: #34C759;">£${s.amount.toFixed(2)}</span>
-                 </div>
-              `).join('')}
-           </div>
+
+                    <!-- Right: Amount -->
+                    <div style="flex: 1; text-align: right;">
+                        <span class="text-lg font-bold text-red">£${s.amount.toFixed(2)}</span>
+                    </div>
+
+                </div>
+            `).join('')}
+
+            ${myCredits.map(s => `
+                <div class="ios-card fade-in flex items-center" style="background: rgba(48, 209, 88, 0.1); border: 1px solid rgba(48, 209, 88, 0.2); padding: 12px 16px; margin-bottom: 0;">
+                    
+                    <!-- Left: Message -->
+                    <div style="flex: 1; text-align: left;">
+                         <span class="text-[11px] uppercase font-bold text-green opacity-80 tracking-wider">Receive from</span>
+                    </div>
+
+                    <!-- Center: User -->
+                    <div style="flex: 0 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                        ${renderAvatar({ name: s.from.name, avatar: s.from.avatar }, 32)}
+                        <span class="text-[11px] font-bold text-white leading-tight">${s.from.name}</span>
+                    </div>
+
+                    <!-- Right: Amount -->
+                    <div style="flex: 1; text-align: right;">
+                        <span class="text-lg font-bold text-green">£${s.amount.toFixed(2)}</span>
+                    </div>
+                    
+                </div>
+            `).join('')}
         </div>
       `;
   };
@@ -345,35 +384,32 @@ export function createUserDashboard({ role, onLogout }) {
 
                  <h4 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-1 opacity-50 px-1">Group Transactions</h4>
                  
-                 ${settlements.length === 0 ? `
-                    <div class="text-center py-8 opacity-40">
-                       <i class="fa-solid fa-check-circle text-4xl mb-2"></i>
-                       <p>Everyone is settled up!</p>
-                    </div>
-                 ` : settlements.map(s => `
-                    <div class="flex items-center gap-md p-3 rounded-2xl" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 12px 20px; justify-content: space-between; border-radius: 24px;">
-                       <div class="flex flex-col items-center gap-xs" style="width: 60px;">
-                          ${renderAvatar({ name: s.from.name, avatar: s.from.avatar }, 40)}
-                          <span class="text-[10px] font-bold text-center leading-tight opacity-50">${s.from.name.split(' ')[0]}</span>
-                       </div>
-                       
-                       <div class="flex-1 flex flex-col items-center gap-0">
-                          <span class="text-[15px] font-bold mb-1" style="color: #3B82F6;">£${s.amount.toFixed(2)}</span>
-                          <div class="w-full flex items-center justify-center gap-1">
-                             <div class="h-[1px] flex-1 bg-blue opacity-10"></div>
-                             <div class="px-2 py-0.5 rounded-full" style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.1);">
-                                <span class="text-[9px] font-bold uppercase tracking-widest text-blue opacity-80" style="font-size: 8px;">Pays</span>
-                             </div>
-                             <div class="h-[1px] flex-1 bg-blue opacity-10"></div>
-                          </div>
-                       </div>
-                       
-                       <div class="flex flex-col items-center gap-xs" style="width: 60px;">
-                          ${renderAvatar({ name: s.to.name, avatar: s.to.avatar }, 40)}
-                          <span class="text-[10px] font-bold text-center leading-tight opacity-50">${s.to.name.split(' ')[0]}</span>
-                       </div>
-                    </div>
-                 `).join('')}
+                  ${settlements.length === 0 ? `
+                        <div class="text-center py-8 opacity-40">
+                           <i class="fa-solid fa-check-circle text-4xl mb-2"></i>
+                           <p>Everyone is settled up!</p>
+                        </div>
+                     ` : settlements.map(s => `
+                        <div class="ios-card flex items-center gap-md p-3" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 16px; justify-content: space-between; margin-bottom: 0;">
+                           <!-- Sender -->
+                           <div class="flex flex-col items-center gap-xs" style="width: 70px;">
+                              ${renderAvatar({ name: s.from.name, avatar: s.from.avatar }, 42)}
+                              <span class="text-[11px] font-bold text-center leading-tight mt-1 text-white">${s.from.name.split(' ')[0]}</span>
+                           </div>
+                           
+                           <!-- Arrow & Amount -->
+                           <div class="flex-1 flex flex-col items-center justify-center">
+                              <span class="text-[10px] text-secondary uppercase tracking-wider font-bold mb-1">Pays▹</span>
+                              <span class="text-sm font-bold mt-1 text-blue">£${s.amount.toFixed(2)}</span>
+                           </div>
+                           
+                           <!-- Receiver -->
+                           <div class="flex flex-col items-center gap-xs" style="width: 70px;">
+                              ${renderAvatar({ name: s.to.name, avatar: s.to.avatar }, 42)}
+                              <span class="text-[11px] font-bold text-center leading-tight mt-1 text-white">${s.to.name.split(' ')[0]}</span>
+                           </div>
+                        </div>
+                     `).join('')}
               </div>
            </div>
            
@@ -471,6 +507,7 @@ export function createUserDashboard({ role, onLogout }) {
   };
 
   loadData();
-  initPullToRefresh(container, loadData);
+  // PullToRefresh on scrollWrapper, not container
+  initPullToRefresh(scrollWrapper, loadData);
   return container;
 }

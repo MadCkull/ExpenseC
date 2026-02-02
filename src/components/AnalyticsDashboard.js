@@ -1,10 +1,15 @@
 import { api } from '../utils/api.js';
 import { initPullToRefresh } from '../utils/pullToRefresh.js';
 import { renderAvatar } from '../utils/ui.js';
+import { createImageViewer } from './ImageViewer.js';
 
 export function createAnalyticsDashboard({ onBack, initialDateRange }) {
   const container = document.createElement('div');
   container.className = 'dashboard container fade-in safe-area-bottom ptr-container';
+  
+  const scrollWrapper = document.createElement('div');
+  scrollWrapper.className = 'scrollable-content';
+  container.appendChild(scrollWrapper);
   
   let state = {
     loading: true,
@@ -28,7 +33,7 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
 
     if (state.loading) {
        html += '<div class="text-center p-8 text-secondary">Loading...</div>';
-       container.innerHTML = html;
+       scrollWrapper.innerHTML = html;
        container.querySelector('#back-btn').addEventListener('click', onBack);
        // Re-init picker even in loading state so it's visible? No, avoid flickering.
        return;
@@ -96,9 +101,18 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
        <div style="height: 50px;"></div>
     `;
 
-    container.innerHTML = html;
+    scrollWrapper.innerHTML = html;
     
     // Listeners
+    container.addEventListener('click', (e) => {
+        const avatar = e.target.closest('.avatar img');
+        if (avatar) {
+             e.stopPropagation();
+             createImageViewer(avatar.src);
+             return;
+        }
+    });
+
     container.querySelector('#back-btn').addEventListener('click', onBack);
     
     // Init Flatpickr
@@ -200,7 +214,7 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
   };
 
   loadData();
-  initPullToRefresh(container, loadData);
+  initPullToRefresh(scrollWrapper, loadData);
 
   return container;
 }
