@@ -1,8 +1,13 @@
 import { createClient } from '@libsql/client';
 import bcrypt from 'bcryptjs';
 
+// Require Turso credentials - no fallback to local SQLite
+if (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN) {
+  throw new Error('❌ TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be set in .env.local');
+}
+
 const db = createClient({
-  url: process.env.TURSO_DATABASE_URL || "file:expensec.db",
+  url: process.env.TURSO_DATABASE_URL,
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 

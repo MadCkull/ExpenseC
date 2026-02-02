@@ -1,3 +1,7 @@
+// 1. Load environment variables FIRST (must be first import)
+import './env.js';
+
+// 2. Now import everything else
 import express from 'express';
 import cors from 'cors';
 import { initDB } from './database/db.js';

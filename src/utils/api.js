@@ -1,4 +1,5 @@
-const API_URL = '/api';
+// Use environment variable for local dev, fallback to relative path for production
+const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 async function fetchJson(endpoint, options = {}) {
   try {
