@@ -1,7 +1,8 @@
 import { api } from '../utils/api.js';
 import { initPullToRefresh } from '../utils/pullToRefresh.js';
 import { renderAvatar } from '../utils/ui.js';
-import { createImageViewer } from './ImageViewer.js';
+import { userStore } from '../utils/userStore.js';
+import Chart from 'chart.js/auto';
 
 export function createAnalyticsDashboard({ onBack, initialDateRange }) {
   const container = document.createElement('div');
@@ -14,199 +15,338 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
   let state = {
     loading: true,
     data: null,
+    // Strict Date Range: Default to All Time if not provided, but UI will show "All Time"
     dateRange: initialDateRange || { start: '', end: '' }
   };
 
+  const unsubscribe = userStore.subscribe(() => {
+    if (!state.loading) render();
+  });
+
   const render = () => {
-    // Header
+    let rangeText = (state.dateRange.start && state.dateRange.end) 
+        ? `${state.dateRange.start} - ${state.dateRange.end}`
+        : 'All Time';
+
     let html = `
       <header class="flex justify-between items-center mb-6 safe-area-top">
         <div class="flex items-center gap-sm">
-          <button class="ios-btn secondary" id="back-btn" style="width: auto; padding: 8px 12px; display:flex; gap:6px; align-items:center;"><i class="fa-solid fa-chevron-left"></i> Back</button>
-          <h1 class="text-xl">Analysis</h1>
+          <button class="ios-btn secondary" id="back-btn" style="width: auto; padding: 8px 12px; display:flex; gap:6px; align-items:center;">
+             <i class="fa-solid fa-chevron-left"></i> 
+             <span class="font-semibold">Analysis</span>
+          </button>
         </div>
         <div class="relative">
-           <input type="text" id="date-range-picker" class="ios-input text-xs" style="width: auto; font-size: 12px; text-align:center; background:var(--ios-card-bg);" placeholder="Select Date Range">
+           <button id="date-range-picker-btn" class="ios-btn secondary" style="width: auto; padding: 6px 12px; font-size: 11px; height: 32px; font-weight: 600; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px;">
+              <i class="fa-solid fa-calendar-alt mr-1 text-blue"></i> ${rangeText}
+           </button>
+           <input type="text" id="hidden-date-picker" style="display:none;">
         </div>
       </header>
     `;
 
-    if (state.loading) {
-       html += '<div class="text-center p-8 text-secondary">Loading...</div>';
+    if (state.loading && !state.data) {
+       html += `
+          <div class="skeleton-card" style="height: 120px;"></div>
+          <div class="flex gap-4 mb-4">
+            <div class="skeleton-card flex-1" style="height: 100px;"></div>
+            <div class="skeleton-card flex-1" style="height: 100px;"></div>
+          </div>
+          <div class="skeleton-card" style="height: 200px;"></div>
+          <div class="skeleton-text w-32 mb-4"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+       `;
        scrollWrapper.innerHTML = html;
        container.querySelector('#back-btn').addEventListener('click', onBack);
-       // Re-init picker even in loading state so it's visible? No, avoid flickering.
        return;
     }
 
-    // Calculate My Total
-    let myTotal = 0;
-    const myId = parseInt(localStorage.getItem('expensec_user_id'));
-    if (state.data && myId) {
-        const me = state.data.by_user.find(u => u.id === myId);
-        if (me) myTotal = me.total || 0;
-    }
+    const { summary, timeline, by_user, highlights } = state.data || {};
 
-    // Charts
+    // --- 1. Top Section: Summary & Highlights (40% / 60% Grid) ---
+    // Redesigned for better margins and alignment
     html += `
-       <div class="ios-card mb-6" style="background: linear-gradient(135deg, rgba(10,132,255,0.2), rgba(0,0,0,0.5)); border: 1px solid rgba(10,132,255,0.3);">
-          <div class="text-secondary text-sm mb-1 uppercase">MY TOTAL SPENDING</div>
-          <div class="text-xxl text-white font-bold">£${myTotal.toFixed(2)}</div>
-          <div class="text-xs text-secondary mt-1">In selected range</div>
-       </div>
+      <div class="flex flex-row gap-4 mb-8">
+         <!-- Left Col (40%): Stats -->
+         <div class="flex flex-col gap-4" style="flex: 4;">
+             
+             <!-- Total Card -->
+             <div class="ios-card flex-1 shadow-md" style="
+                  background: linear-gradient(135deg, rgba(10, 132, 255, 0.15), rgba(10, 132, 255, 0.05)); 
+                  border: 1px solid rgba(10, 132, 255, 0.2); 
+                  padding: 16px; 
+                  margin-bottom: 0; 
+                  display: flex; 
+                  flex-direction: column; 
+                  justify-content: center;
+                  backdrop-filter: blur(10px);">
+                 <div class="text-[10px] text-blue font-bold uppercase tracking-widest mb-1.5 opacity-90"><i class="fa-solid fa-wallet mr-1"></i> Total</div>
+                 <div class="text-xl font-bold text-white tracking-tight">£${(summary?.total || 0).toFixed(2)}</div>
+             </div>
 
-         <div class="ios-card mb-6">
-            <h3 class="text-md font-semibold mb-4 text-center" >Sharing</h3>
-            <div class="flex flex-col items-center" style="margin-top: -10px;" style="overflow: visible;">
-               <canvas id="userChart" width="300" height="300" style="max-width: 290px; margin-bottom: 10px; margin-top: 10px; padding: 10px; max-height: 290px; overflow: visible;"></canvas>
-            </div>
-            
-            <div class="mt-2 flex flex-col gap-sm">
-               <h4 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-2 px-1">Detailed Breakdown</h4>
-               ${(() => {
-                  const colors = ['#3B82F6', '#10B981', '#EF4444', '#8B5CF6', '#F59E0B', '#06B6D4', '#EC4899'];
-                  const totalSum = state.data.by_user.reduce((sum, u) => sum + (u.total || 0), 0);
-                  
-                  return state.data.by_user.map((u, index) => {
-                     const color = colors[index % colors.length];
-                     const percentage = totalSum > 0 ? ((u.total || 0) / totalSum * 100) : 0;
-                     
-                     return `
-                        <div class="flex flex-col gap-xs p-1 rounded-xl" style="background: rgba(255,255,255,0.02); border-radius: 15px; overflow: hidden; position: relative;">
-                           <div class="flex justify-between items-center p-1 px-2 relative z-10;">
-                              <div class="flex items-center gap-md">
-                                 ${renderAvatar(u, 32)}
-                                 <span class="text-sm font-medium pt-1">${u.name}</span>
-                              </div>
-                              <span class="text-sm font-bold pt-1">£${(u.total || 0).toFixed(2)}</span>
-                           </div>
-                           
-                           <!-- Progress Bar Background -->
-                           <div style="position: absolute; bottom: 0; left: 0; height: 100%; width: ${percentage}%; background: ${color}; opacity: 0.08; transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);"></div>
-                           
-                           <!-- Progress Bar Line -->
-                           <div style="position: absolute; bottom: 0; left: 0; height: 2px; width: ${percentage}%; background: ${color}; opacity: 0.8; border-radius: 0 2px 2px 0; transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);"></div>
-                        </div>
-                     `;
-                  }).join('');
-               })()}
-            </div>
+             <!-- Avg Card -->
+             <div class="ios-card flex-1 shadow-md" style="
+                  background: rgba(255, 255, 255, 0.03); 
+                  border: 1px solid rgba(255, 255, 255, 0.05); 
+                  padding: 16px; 
+                  margin-bottom: 0; 
+                  display: flex; 
+                  flex-direction: column; 
+                  justify-content: center;">
+                 <div class="text-[10px] text-secondary font-bold uppercase tracking-widest mb-1.5 opacity-70"><i class="fa-solid fa-layer-group mr-1"></i> Avg</div>
+                 <div class="text-lg font-bold text-white tracking-tight">£${(summary?.avg || 0).toFixed(2)}</div>
+             </div>
          </div>
-       
-       <div class="ios-card mb-6">
-          <h3 class="text-md font-semibold mb-4">Spending Trend <span class="text-xs text-secondary font-normal ml-2">(Over Time)</span></h3>
-          <canvas id="trendChart" width="400" height="250"></canvas>
+
+         <!-- Right Col (60%): Highlights -->
+         <div class="ios-card flex flex-col justify-center shadow-md" style="
+              flex: 6; 
+              margin-bottom: 0; 
+              padding: 16px; 
+              background: rgba(22, 22, 24, 0.6);
+              border: 1px solid rgba(255, 255, 255, 0.05);">
+             ${(highlights?.max || highlights?.min) ? `
+               <h3 class="text-secondary text-[10px] font-bold uppercase tracking-widest mb-4 opacity-70">Highlights</h3>
+               <div class="flex flex-col gap-4">
+                   ${highlights.max ? `
+                       <div class="flex justify-between items-center pb-3" style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                           <div style="min-width: 0; padding-right: 8px;">
+                               <div class="text-[9px] text-red font-bold uppercase tracking-wider mb-1"><i class="fa-solid fa-arrow-trend-up mr-1"></i> High</div>
+                               <div class="text-sm font-semibold text-white leading-tight truncate">${highlights.max.name}</div>
+                           </div>
+                           <div class="text-right">
+                               <div class="text-red font-bold text-md whitespace-nowrap">£${highlights.max.total_amount.toFixed(2)}</div>
+                               <div class="text-[9px] text-secondary opacity-60 mt-0.5">${new Date(highlights.max.start_date).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</div>
+                           </div>
+                       </div>
+                   ` : ''}
+                   
+                   ${highlights.min ? `
+                       <div class="flex justify-between items-center pt-1">
+                           <div style="min-width: 0; padding-right: 8px;">
+                               <div class="text-[9px] text-green font-bold uppercase tracking-wider mb-1"><i class="fa-solid fa-arrow-trend-down mr-1"></i> Low</div>
+                               <div class="text-sm font-semibold text-white leading-tight truncate">${highlights.min.name}</div>
+                           </div>
+                            <div class="text-right">
+                               <div class="text-green font-bold text-md whitespace-nowrap">£${highlights.min.total_amount.toFixed(2)}</div>
+                               <div class="text-[9px] text-secondary opacity-60 mt-0.5">${new Date(highlights.min.start_date).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</div>
+                           </div>
+                       </div>
+                   ` : ''}
+               </div>
+             ` : '<div class="text-center text-[10px] text-secondary opacity-50 py-4">Not enough data for highlights</div>'}
+         </div>
+      </div>
+    `;
+
+    // --- 2. Pie Chart ---
+    const totalSum = summary?.total || 0;
+    const colors = ['#3B82F6', '#10B981', '#EF4444', '#8B5CF6', '#F59E0B', '#06B6D4', '#EC4899'];
+
+    html += `
+       <div class="ios-card mb-8">
+          <div class="flex justify-between items-center mb-6">
+             <h3 class="text-md font-semibold text-white">Who Paid What?</h3>
+          </div>
+          
+          <div class="flex flex-col items-center gap-6">
+              <div style="width: 220px; height: 220px; position:relative;">
+                  <canvas id="userChart"></canvas>
+                  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); text-align:center;">
+                     <div class="text-[10px] text-secondary uppercase tracking-wider font-bold">Total</div>
+                     <div class="text-xl font-bold text-white">£${totalSum.toFixed(2)}</div>
+                  </div>
+              </div>
+          </div>
+       </div>
+    `;
+
+    // --- 3. Spending Trends Chart (Moved ABOVE Leaderboard) ---
+    html += `
+       <div class="ios-card mb-8">
+          <div class="flex justify-between items-baseline mb-4">
+             <h3 class="text-md font-semibold text-white">Spending Trend</h3>
+          </div>
+          <div style="height: 220px; width: 100%;">
+             <canvas id="trendChart"></canvas>
+          </div>
+       </div>
+    `;
+
+    // --- 4. Leaderboard List (Moved to Bottom) ---
+    html += `
+       <div class="ios-card mb-8" style="background: transparent; padding: 0; border: none;">
+          <h4 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-3 px-1">Leaderboard</h4>
+          <div class="flex flex-col gap-3">
+             ${by_user && by_user.length > 0 ? by_user.map((u, index) => {
+                const percentage = totalSum > 0 ? ((u.total_paid / totalSum) * 100) : 0;
+                const color = colors[index % colors.length];
+
+                return `
+                   <div class="flex flex-col gap-xs p-1 rounded-2xl" style="background: rgba(255,255,255,0.02); border-radius: 16px; overflow: hidden; position: relative; padding: 2px 13px 4px 5px; margin: 3px;">
+                      <div class="flex justify-between items-center p-3 px-4 relative z-10">
+                         <div class="flex items-center gap-3">
+                            ${renderAvatar({ name: u.name, avatar: u.avatar, id: u.id }, 38)}
+                            <span class="text-sm font-semibold text-white pt-0.5">${u.name}</span>
+                         </div>
+                         <span class="text-sm font-bold text-white pt-0.5">£${(u.total_paid || 0).toFixed(2)}</span>
+                      </div>
+                      <div style="position: absolute; bottom: 0; left: 0; height: 100%; width: ${percentage}%; background: ${color}; opacity: 0.12; transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);"></div>
+                      <div style="position: absolute; bottom: 0; left: 0; height: 3px; width: ${percentage}%; background: ${color}; opacity: 0.8; border-radius: 0 2px 2px 0; transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);"></div>
+                   </div>
+                `;
+             }).join('') : '<div class="text-secondary text-xs text-center">No data for this period</div>'}
+          </div>
        </div>
        
-       <div style="height: 50px;"></div>
+       <div style="height: 40px;"></div>
     `;
 
     scrollWrapper.innerHTML = html;
-    
-    // Listeners
-    container.addEventListener('click', (e) => {
-        const avatar = e.target.closest('.avatar img');
-        if (avatar) {
-             e.stopPropagation();
-             createImageViewer(avatar.src);
-             return;
-        }
-    });
-
-    container.querySelector('#back-btn').addEventListener('click', onBack);
-    
-    // Init Flatpickr
-    flatpickr(container.querySelector("#date-range-picker"), {
-        mode: "range",
-        dateFormat: "Y-m-d",
-        defaultDate: [state.dateRange.start, state.dateRange.end],
-        theme: "dark",
-        onChange: (selectedDates, dateStr) => {
-             if (selectedDates.length === 2) {
-                 const start = selectedDates[0].toISOString().split('T')[0];
-                 const end = selectedDates[1].toISOString().split('T')[0];
-                 // Avoid reload loop if same
-                 if (state.dateRange.start !== start || state.dateRange.end !== end) {
-                     state.dateRange.start = start;
-                     state.dateRange.end = end;
-                     loadData();
-                 }
-             }
-        }
-    });
-
+    attachListeners();
     initCharts();
   };
 
+  const attachListeners = () => {
+      container.querySelector('#back-btn').addEventListener('click', onBack);
+      
+      // Flatpickr
+      const pickerBtn = container.querySelector('#date-range-picker-btn');
+      const hiddenInput = container.querySelector('#hidden-date-picker');
+
+      if (hiddenInput) {
+          const fp = flatpickr(hiddenInput, {
+              mode: "range",
+              dateFormat: "Y-m-d",
+              defaultDate: [state.dateRange.start, state.dateRange.end],
+              theme: "dark",
+              onChange: (selectedDates) => {
+                  if (selectedDates.length === 2) {
+                      state.dateRange.start = selectedDates[0].toISOString().split('T')[0];
+                      state.dateRange.end = selectedDates[1].toISOString().split('T')[0];
+                      loadData();
+                  } else if (selectedDates.length === 0) {
+                      // Clear
+                      state.dateRange = { start: '', end: '' };
+                      loadData();
+                  }
+              }
+          });
+          
+          pickerBtn?.addEventListener('click', () => {
+              fp.open();
+          });
+      }
+  };
+
   const initCharts = () => {
-     if (!state.data) return;
-     
-     // 1. User Pie Chart
-     const userCtx = container.querySelector('#userChart').getContext('2d');
-     const chart = new Chart(userCtx, {
-        type: 'doughnut',
-        data: {
-           labels: state.data.by_user.map(u => u.name),
-           datasets: [{
-              data: state.data.by_user.map(u => u.total || 0),
-              backgroundColor: ['#3B82F6', '#10B981', '#EF4444', '#8B5CF6', '#F59E0B', '#06B6D4', '#EC4899'],
-              borderWidth: 0,
-              hoverOffset: 10
-           }]
-        },
-        options: {
-           responsive: true,
-           plugins: {
-              legend: { display: false }
-           }
-        }
-     });
-     
-     // 2. Trend Line Chart
-     const trendCtx = container.querySelector('#trendChart').getContext('2d');
-     new Chart(trendCtx, {
-        type: 'line',
-        data: {
-           // Use Start Date for axis labels
-           labels: state.data.timeline.map(t => new Date(t.start_date).toLocaleDateString(undefined, {month:'short', day:'numeric'})),
-           datasets: [{
-              label: 'Total Spending',
-              data: state.data.timeline.map(t => t.total),
-              borderColor: '#0A84FF',
-              backgroundColor: 'rgba(10, 132, 255, 0.1)',
-              fill: true,
-              tension: 0.4,
-              pointRadius: 4
-           }]
-        },
-        options: {
-           responsive: true,
-           scales: {
-              y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8e8e93', font: { size: 10 } } },
-              x: { grid: { display: false }, ticks: { color: '#8e8e93', font: { size: 10 } } }
-           },
-           plugins: { legend: { display: false } }
-        }
-     });
+      if (!state.data) return;
+      const { timeline, by_user } = state.data;
+      
+      const chartDefaults = {
+          color: '#8e8e93',
+          borderColor: 'rgba(255,255,255,0.1)',
+          font: { family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', size: 10 }
+      };
+
+      // 1. Trend Chart
+      const trendCanvas = container.querySelector('#trendChart');
+      if (trendCanvas && timeline.length > 0) {
+          new Chart(trendCanvas, {
+              type: 'line',
+              data: {
+                  labels: timeline.map(t => new Date(t.start_date).toLocaleDateString(undefined, {month:'short', day:'numeric'})),
+                  datasets: [{
+                      label: 'Spending',
+                      data: timeline.map(t => t.total_amount),
+                      borderColor: '#0A84FF',
+                      backgroundColor: (context) => {
+                          const ctx = context.chart.ctx;
+                          const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+                          gradient.addColorStop(0, 'rgba(10, 132, 255, 0.4)');
+                          gradient.addColorStop(1, 'rgba(10, 132, 255, 0)');
+                          return gradient;
+                      },
+                      borderWidth: 2,
+                      fill: true,
+                      tension: 0.4,
+                      pointRadius: 4,
+                      pointBackgroundColor: '#0A84FF',
+                      pointBorderColor: '#fff',
+                      pointBorderWidth: 2
+                  }]
+              },
+              options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                      legend: { display: false },
+                      tooltip: {
+                          backgroundColor: 'rgba(28, 28, 30, 0.9)',
+                          titleColor: '#fff',
+                          bodyColor: '#fff',
+                          padding: 10,
+                          cornerRadius: 8,
+                          displayColors: false,
+                          callbacks: {
+                              title: (context) => {
+                                  const idx = context[0].dataIndex;
+                                  return timeline[idx].name; // Show Full Event Name on Hover
+                              },
+                              label: (context) => {
+                                  return ` £${context.raw.toFixed(2)}`;
+                              }
+                          }
+                      }
+                  },
+                  scales: {
+                      y: {
+                          border: { display: false },
+                          grid: { color: 'rgba(255,255,255,0.05)' },
+                          ticks: { color: '#8e8e93' }
+                      },
+                      x: {
+                          grid: { display: false },
+                          ticks: { color: '#8e8e93' }
+                      }
+                  }
+              }
+          });
+      }
+
+      // 2. User Breakdown Chart
+      const userCanvas = container.querySelector('#userChart');
+      if (userCanvas && by_user.length > 0) {
+          new Chart(userCanvas, {
+              type: 'doughnut',
+              data: {
+                  labels: by_user.map(u => u.name),
+                  datasets: [{
+                      data: by_user.map(u => u.total_paid),
+                      backgroundColor: ['#3B82F6', '#10B981', '#EF4444', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4'],
+                      borderWidth: 0,
+                      hoverOffset: 4
+                  }]
+              },
+              options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  cutout: '75%',
+                  plugins: { legend: { display: false } }
+              }
+          });
+      }
   };
 
   const loadData = async () => {
-    // Don't set loading = true to avoid full UI flicker, just overlay or silent refresh?
-    // User requested "works perfectly", flicker is bad.
-    // Chart.js can update. But let's keep it simple: re-render is safest.
-    // To make it smooth, maybe just transparency overlay?
-    // Let's use state.loading only for initial load.
-    
-    if (!state.data) {
-        state.loading = true;
-        render();
-    }
-    
+    state.loading = true;
+    render();
     try {
-       state.data = await api.events.analytics(state.dateRange.start, state.dateRange.end);
+       state.data = await api.analytics.summary(state.dateRange.start, state.dateRange.end);
     } catch(e) {
-       console.error(e);
-       // alert("Failed to load analytics");
+       console.error("Analytics Load Error", e);
     } finally {
        state.loading = false;
        render();
@@ -215,6 +355,5 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
 
   loadData();
   initPullToRefresh(scrollWrapper, loadData);
-
   return container;
 }

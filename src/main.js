@@ -3,6 +3,7 @@ import { createUserDashboard } from './components/UserDashboard.js';
 import { createAdminDashboard } from './components/AdminDashboard.js';
 import { createAnalyticsDashboard } from './components/AnalyticsDashboard.js';
 import { createEventHistory } from './components/EventHistory.js';
+import { userStore } from './utils/userStore.js';
 import './styles/main.css';
 
 const app = document.querySelector('#app');
@@ -107,7 +108,13 @@ window.addEventListener('beforeinstallprompt', (e) => {
   // You can show a button here if needed
 });
 
-// Init
+import { api } from './utils/api.js';
+
+// Init Store
+userStore.init();
+// Background pre-fetch for instant popups
+api.gandus.stats();
+
 const savedRole = localStorage.getItem('auth_role');
 // For security (since PIN is simple), maybe always require login on reload?
 // "LockScreen (Pin)" implies lock on entry.

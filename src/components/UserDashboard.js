@@ -2,6 +2,8 @@ import { api } from '../utils/api.js';
 import { initPullToRefresh } from '../utils/pullToRefresh.js';
 import { renderAvatar } from '../utils/ui.js';
 import { createImageViewer } from './ImageViewer.js';
+import { cache, CACHE_KEYS, TTL } from '../utils/cache.js';
+import { userStore } from '../utils/userStore.js';
 
 export function createUserDashboard({ role, onLogout }) {
   const container = document.createElement('div');
@@ -12,19 +14,44 @@ export function createUserDashboard({ role, onLogout }) {
   scrollWrapper.className = 'scrollable-content';
   container.appendChild(scrollWrapper);
   
+  // Try to hydrate from cache for instant render
+  const cached = cache.get(CACHE_KEYS.CURRENT_EXPENSES);
   let state = {
-    expenses: [],
-    stats: { total: 0, per_head: 0, users_count: 0 },
-    loading: true,
+    expenses: cached?.expenses || [],
+    stats: cached?.stats || { total: 0, per_head: 0, users_count: 0 },
+    loading: !cached,  // Only show loading spinner if no cache exists
     eventName: '',
-    active: true,
-    event: null,
+    active: cached?.active ?? true,
+    event: cached?.event || null,
     currentUserId: localStorage.getItem('expensec_user_id')
   };
 
+  const unsubscribe = userStore.subscribe(() => {
+    if (!state.loading) render();
+  });
+
   const render = () => {
     if (state.loading) {
-      scrollWrapper.innerHTML = '<div class="text-center p-8 text-secondary">Loading...</div>';
+      scrollWrapper.innerHTML = `
+        <header class="flex justify-between items-center mb-6 safe-area-top">
+          <div class="flex flex-col w-1/2">
+            <div class="skeleton-text w-24"></div>
+            <div class="skeleton-text w-16 opacity-50"></div>
+          </div>
+          <div class="flex gap-2">
+            <div class="skeleton-avatar" style="width: 36px; height: 36px;"></div>
+            <div class="skeleton-avatar" style="width: 36px; height: 36px;"></div>
+            <div class="skeleton-avatar" style="width: 36px; height: 36px;"></div>
+          </div>
+        </header>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-text w-32 mb-4"></div>
+        <div class="skeleton-card" style="height: 120px;"></div>
+        <div class="skeleton-text w-32 mb-4"></div>
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+      `;
       return;
     }
 
@@ -54,6 +81,9 @@ export function createUserDashboard({ role, onLogout }) {
           ` : `<p class="text-secondary text-xs mt-1">No Active Event</p>`}
         </div>
         <div class="flex items-center gap-sm">
+          <button class="ios-btn secondary" id="gandu-btn" style="width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center; position: relative; overflow: hidden;">
+            <img src="/gandu.svg" style="width: 24px; height: 24px; object-fit: contain;" alt="Gandu">
+          </button>
           <button class="ios-btn secondary" id="history-btn" style="width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-clock-rotate-left"></i></button>
           <button class="ios-btn secondary" id="analytics-btn" style="width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-chart-line"></i></button>
           ${role === 'admin' ? '<button class="ios-btn secondary" id="admin-btn" style="width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-user-gear"></i></button>' : ''}
@@ -113,11 +143,17 @@ export function createUserDashboard({ role, onLogout }) {
         `;
     } else {
         const remaining = expenses.filter(u => u.amount === null).length;
+        const isGanduWarning = remaining === 1;
+        
         return `
-          <div class="ios-card mb-6" style="background: rgba(255, 255, 255, 0.03); border: 1px dashed rgba(255,255,255,0.1);">
+          <div class="ios-card mb-6" style="background: ${isGanduWarning ? 'rgba(255, 69, 58, 0.08)' : 'rgba(255, 255, 255, 0.03)'}; border: 1px dashed ${isGanduWarning ? 'rgba(255, 69, 58, 0.4)' : 'rgba(255,255,255,0.1)'}; transition: all 0.3s ease;">
              <div class="text-center py-4">
-                <div class="text-lg text-secondary mb-1">Collecting Expenses...</div>
-                <div class="text-xs text-blue">${remaining} friend${remaining > 1 ? 's' : ''} left to enter</div>
+                <div class="text-lg ${isGanduWarning ? 'text-red font-bold animate-pulse' : 'text-secondary'} mb-1">
+                    ${isGanduWarning ? '1 Gandu Left!' : 'Collecting Expenses...'}
+                </div>
+                <div class="text-xs ${isGanduWarning ? 'text-red opacity-80' : 'text-blue'}">
+                    ${isGanduWarning ? '(Name will be added to Gandu List)' : `${remaining} friend${remaining > 1 ? 's' : ''} left`}
+                </div>
              </div>
           </div>
         `;
@@ -130,7 +166,7 @@ export function createUserDashboard({ role, onLogout }) {
         <div class="ios-card" style="padding: 20px; background: rgba(255,255,255,0.05); border: 1px solid ${hasEntered ? 'var(--ios-blue)' : 'rgba(255,255,255,0.1)'};">
            <div class="flex justify-between items-center">
               <div class="flex items-center gap-md">
-                 ${renderAvatar({ name: user.user_name, avatar: user.user_avatar }, 44, hasEntered ? 'hero-entered' : '')}
+                 ${renderAvatar({ name: user.user_name, avatar: user.user_avatar, id: user.user_id }, 44, hasEntered ? 'hero-entered' : '')}
                  <div>
                     <div class="text-md font-bold">${user.user_name}</div>
                     <div class="text-xs text-secondary">${hasEntered ? 'Saved' : 'Enter amount spent'}</div>
@@ -158,13 +194,7 @@ export function createUserDashboard({ role, onLogout }) {
       return `
         <div class="ios-card flex justify-between items-center" style="padding: 14px 16px; margin-bottom: 0; background: rgba(255,255,255,0.02); border: none;">
           <div class="flex items-center gap-md">
-             ${hasEntered 
-               ? `<div class="avatar flex items-center justify-center text-sm font-bold" 
-                       style="width: 32px; height: 32px; background: rgba(48, 209, 88, 0.2); border-radius: 50%; color: var(--ios-green);">
-                    <i class="fa-solid fa-check"></i>
-                  </div>`
-               : renderAvatar({ name: user.user_name, avatar: user.user_avatar }, 32)
-             }
+             ${renderAvatar({ name: user.user_name, avatar: user.user_avatar, id: user.user_id }, 42)}
              <div class="text-md font-medium text-white">${user.user_name}</div>
           </div>
           <div class="flex flex-col items-end">
@@ -196,6 +226,7 @@ export function createUserDashboard({ role, onLogout }) {
     container.querySelector('#analytics-btn')?.addEventListener('click', () => {
          window.dispatchEvent(new CustomEvent('navigate', { detail: 'analytics' }));
     });
+    container.querySelector('#gandu-btn')?.addEventListener('click', showGanduModal);
 
     container.querySelector('#settlement-guide-btn')?.addEventListener('click', showSettlementModal);
     
@@ -212,13 +243,36 @@ export function createUserDashboard({ role, onLogout }) {
         const amount = val === '' ? null : parseFloat(val); 
         
         if (amount !== null && !isNaN(amount)) {
+          // Optimistic update: update state immediately, re-render, then sync
+          const prevExpenses = [...state.expenses];
+          const prevStats = { ...state.stats };
+
+          // Update local state
+          const idx = state.expenses.findIndex(u => u.user_id == userId);
+          if (idx !== -1) {
+            state.expenses[idx] = { ...state.expenses[idx], amount };
+          }
+          recalcStats();
+          render(); // Instant UI update
+
           try { 
             await api.expenses.update(userId, amount);
-            // Full reload to ensure settlements/stats are perfectly in sync
-            await loadData(); 
+            // Update cache with new state
+            cache.set(CACHE_KEYS.CURRENT_EXPENSES, {
+              expenses: state.expenses,
+              stats: state.stats,
+              event: state.event,
+              active: state.active
+            });
+            // Background refresh to get server-calculated values
+            loadData(true);
           } catch (err) { 
             console.error(err); 
-            alert("Failed to save expense");
+            // Revert on failure
+            state.expenses = prevExpenses;
+            state.stats = prevStats;
+            render();
+            alert("Failed to save expense. Reverted.");
           }
         }
       });
@@ -286,7 +340,7 @@ export function createUserDashboard({ role, onLogout }) {
             ${headerText}
             <div class="ios-card ${marginClass} fade-in" style="background: rgba(48, 209, 88, 0.1); border: 1px solid rgba(48, 209, 88, 0.2); padding: 16px;">
                <div class="flex items-center gap-md">
-                  <div style="font-size: 24px;">🎉</div>
+                  <div style="font-size: 24px;"><i class="fa-solid fa-circle-check text-green"></i></div>
                   <div>
                      <div class="text-sm font-bold text-white">You're all squared away!</div>
                      <div class="text-[11px] text-secondary opacity-70 uppercase tracking-widest font-bold">No payments needed</div>
@@ -430,6 +484,102 @@ export function createUserDashboard({ role, onLogout }) {
       });
   };
 
+  const showGanduModal = async () => {
+      if (document.getElementById('gandu-modal-root')) return;
+      
+      const modal = document.createElement('div');
+      modal.id = 'gandu-modal-root';
+      modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); z-index:9999; display:flex; align-items:center; justify-content:center; padding: 20px;';
+      
+      modal.innerHTML = `
+        <div class="ios-card w-full fade-in safe-area-bottom" style="width: 100%; max-width: 420px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); padding: 0; background: var(--ios-card-bg);">
+           <div class="flex items-center justify-center p-6 pb-2 relative">
+               <div class="flex items-center gap-2">
+               </div>
+               <button id="gandu-info-btn" style="position: absolute; right: 54px; top: 22px; width: 24px; height: 24px; border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; color: var(--ios-text-secondary); font-size: 12px; display:flex; align-items:center; justify-content:center; cursor: pointer;">?</button>
+               <button id="close-gandu-btn" style="position: absolute; right: 16px; top: 20px; width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.1); border: none; color: white; display:flex; align-items:center; justify-content:center; cursor: pointer;">
+                  <i class="fa-solid fa-xmark"></i>
+               </button>
+           </div>
+           
+            <div id="gandu-content" style="flex: 1; overflow-y: auto; padding: 0 20px 20px; margin-top: 60px;">
+               <div class="flex flex-col gap-sm mt-2">
+                  <div class="skeleton-card" style="height: 140px;"></div>
+                  <div class="skeleton-text w-24 mt-4"></div>
+                  <div class="skeleton-row"></div>
+                  <div class="skeleton-row"></div>
+                  <div class="skeleton-row"></div>
+                  <div class="skeleton-row"></div>
+               </div>
+            </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      document.body.classList.add('modal-open');
+
+      const close = () => {
+          modal.remove();
+          document.body.classList.remove('modal-open');
+      };
+      modal.querySelector('#close-gandu-btn').addEventListener('click', close);
+      modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+      modal.querySelector('#gandu-info-btn').addEventListener('click', () => {
+          alert("What is a Gandu?\n\nThe Gandu is the last person to enter their expenses in an event. It's a fun way to encourage everyone to stay up to date!");
+      });
+
+      try {
+          const stats = await api.gandus.stats();
+          const content = modal.querySelector('#gandu-content');
+          
+          let html = `
+              <div class="flex flex-col gap-sm">
+                  ${stats.king ? `
+                      <div class="ios-card mt-2 mb-2" style="background: linear-gradient(135deg, rgba(255,215,0,0.15), rgba(0,0,0,0.3)); border: 1px solid #FFD700; text-align: center; padding: 24px;">
+                          <div class="text-[10px] text-[#FFD700] font-bold uppercase tracking-widest mb-3" style="font-size: 21px; font-weight: 700; margin: -19px 0 23px 0;">Gandu of the Group</div>
+                          <div class="flex justify-center mb-3">
+                              ${renderAvatar({ name: stats.king.user_name, avatar: stats.king.user_avatar, id: stats.king.user_id }, 70)}
+                          </div>
+                          <div class="text-md font-bold text-white mb-1">${stats.king.user_name}</div>
+                      </div>
+                  ` : ''}
+
+                  <h3 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-1 mt-4 px-1">Top 3 Leaderboard</h3>
+                  <div class="flex flex-col gap-2">
+                       ${stats.leaderboard.length > 0 ? stats.leaderboard.slice(0, 3).map((u, idx) => `
+                           <div class="ios-card flex justify-between items-center" style="padding: 12px 16px; margin-bottom: 0; background: rgba(255,255,255,0.03); border: none;">
+                               <div class="flex items-center gap-md">
+                                   <span class="text-xs text-secondary w-4">${idx + 1}</span>
+                                   ${renderAvatar({ name: u.user_name, avatar: u.user_avatar, id: u.user_id }, 36)}
+                                   <span class="text-sm font-semibold">${u.user_name}</span>
+                               </div>
+                               <div class="text-sm font-bold text-white">${u.gandu_count}</div>
+                           </div>
+                       `).join('') : '<p class="text-center text-secondary text-sm py-4">No gandus yet!</p>'}
+                  </div>
+
+                  <h3 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-1 mt-6 px-1">Recent History</h3>
+                   <div class="flex flex-col gap-2">
+                       ${stats.history.length > 0 ? stats.history.map(h => `
+                           <div class="ios-card flex justify-between items-center" style="padding: 12px 16px; margin-bottom: 0; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.02);">
+                               <div class="flex items-center gap-md">
+                                   ${renderAvatar({ name: h.user_name, avatar: h.user_avatar, id: h.user_id }, 30)}
+                                   <div class="flex flex-col">
+                                       <span class="text-sm font-medium">${h.user_name}</span>
+                                   </div>
+                               </div>
+                               <span class="text-[10px] text-secondary italic">${new Date(h.archived_at).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</span>
+                           </div>
+                       `).join('') : '<p class="text-center text-secondary text-sm py-4">The history is empty.</p>'}
+                  </div>
+              </div>
+          `;
+          content.innerHTML = html;
+      } catch (err) {
+          modal.querySelector('#gandu-content').innerHTML = `<div class="text-center text-red p-8">Failed to load stats</div>`;
+      }
+  };
+
   const showIdentificationModal = () => {
       if (document.getElementById('id-modal-root')) return;
       const modal = document.createElement('div');
@@ -489,24 +639,59 @@ export function createUserDashboard({ role, onLogout }) {
      state.stats.per_head = count > 0 ? (total / count).toFixed(2) : 0;
   };
 
-  const loadData = async () => {
-    state.loading = true;
-    render();
+  const loadData = async (silent = false) => {
+    // If not silent and no cached data, show loading
+    if (!silent && state.expenses.length === 0) {
+      state.loading = true;
+      render();
+    }
+    // If we have cached data and this is first load, render it immediately
+    if (!silent && state.expenses.length > 0 && state.loading) {
+      state.loading = false;
+      render();
+    }
     try {
        const data = await api.expenses.current();
+       // Cache the fresh data
+       cache.set(CACHE_KEYS.CURRENT_EXPENSES, {
+         expenses: data.expenses,
+         stats: data.stats,
+         event: data.event,
+         active: data.active
+       });
+       // Check if data actually changed before re-rendering
+       const changed = JSON.stringify(data.expenses) !== JSON.stringify(state.expenses)
+                    || JSON.stringify(data.stats) !== JSON.stringify(state.stats)
+                    || data.active !== state.active;
        state.expenses = data.expenses;
        state.stats = data.stats || { total: 0, users_count: 0, per_head: 0 };
        state.event = data.event;
        state.active = data.active;
+       state.loading = false;
+       if (changed || !silent) {
+         render();
+       }
     } catch (e) {
        console.error(e);
+       // If we had cached data, just keep showing it (no error flash)
+       if (state.expenses.length > 0) {
+         state.loading = false;
+       }
     } finally {
-       state.loading = false;
-       render();
+       if (state.loading) {
+         state.loading = false;
+         render();
+       }
     }
   };
 
-  loadData();
+  // Render cached data immediately if available, then refresh in background
+  if (cached) {
+    render();
+    loadData(true);
+  } else {
+    loadData();
+  }
   // PullToRefresh on scrollWrapper, not container
   initPullToRefresh(scrollWrapper, loadData);
   return container;

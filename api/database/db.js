@@ -46,10 +46,27 @@ export async function initDB() {
         per_head REAL DEFAULT 0,
         participants_count INTEGER DEFAULT 0,
         settlements_json TEXT,
+        gandu_id INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        archived_at DATETIME
+        archived_at DATETIME,
+        FOREIGN KEY (gandu_id) REFERENCES users(id)
       );
     `);
+
+    // Migration: Add gandu_id or rename if joker_id exists
+    try {
+      // First try to rename if old exists
+      await db.execute("ALTER TABLE events RENAME COLUMN joker_id TO gandu_id");
+      console.log("Migration: Renamed joker_id to gandu_id");
+    } catch (e) {
+      // If rename fails (maybe already renamed or doesn't exist), try adding it
+      try {
+        await db.execute("ALTER TABLE events ADD COLUMN gandu_id INTEGER REFERENCES users(id)");
+        console.log("Migration: Added gandu_id to events table");
+      } catch (ee) {
+        // Already exists
+      }
+    }
 
     await db.execute(`
       CREATE TABLE IF NOT EXISTS expenses (

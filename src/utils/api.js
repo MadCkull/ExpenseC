@@ -45,6 +45,23 @@ export const api = {
     delete: (id) => fetchJson(`/events/${id}`, { method: 'DELETE' }),
     analytics: (start, end) => fetchJson(`/events/analytics?start_date=${start || ''}&end_date=${end || ''}&t=${Date.now()}`),
   },
+  analytics: {
+    summary: (start, end) => fetchJson(`/analytics/summary?start_date=${start || ''}&end_date=${end || ''}&t=${Date.now()}`),
+  },
+  gandus: {
+    _cache: null,
+    _lastFetch: 0,
+    stats: async function() {
+      const now = Date.now();
+      if (this._cache && (now - this._lastFetch < 300000)) { // 5 min cache
+        return this._cache;
+      }
+      this._cache = await fetchJson('/gandus/stats');
+      this._lastFetch = now;
+      return this._cache;
+    },
+    invalidate: function() { this._cache = null; }
+  },
   settings: {
     updatePins: (admin_pin, user_pin) => fetchJson('/settings/pins', { method: 'POST', body: JSON.stringify({ admin_pin, user_pin }) }),
   }

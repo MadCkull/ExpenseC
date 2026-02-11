@@ -1,5 +1,6 @@
 import { api } from '../utils/api.js';
 import { initPullToRefresh } from '../utils/pullToRefresh.js';
+import { cache, CACHE_KEYS, TTL } from '../utils/cache.js';
 
 export function createEventHistory({ onBack, onSelectEvent }) {
   const container = document.createElement('div');
@@ -9,9 +10,11 @@ export function createEventHistory({ onBack, onSelectEvent }) {
   scrollWrapper.className = 'scrollable-content';
   container.appendChild(scrollWrapper);
   
+  // Hydrate from cache for instant render
+  const cached = cache.get(CACHE_KEYS.EVENT_HISTORY);
   let state = {
-    loading: true,
-    history: []
+    loading: !cached,
+    history: cached || []
   };
 
   const render = () => {
@@ -71,17 +74,37 @@ export function createEventHistory({ onBack, onSelectEvent }) {
     });
   };
 
-  const load = async () => {
-     state.loading = true;
-     render();
+  const load = async (silent = false) => {
+     // Only show loading if no cached data
+     if (!silent && state.history.length === 0) {
+       state.loading = true;
+       render();
+     }
+     // If we have cached data and it's first load, render immediately
+     if (!silent && state.history.length > 0 && state.loading) {
+       state.loading = false;
+       render();
+     }
      try {
-         state.history = await api.events.history();
-     } catch(e) { console.error(e); }
-     finally { state.loading = false; render(); }
+         const data = await api.events.history();
+         cache.set(CACHE_KEYS.EVENT_HISTORY, data);
+         const changed = JSON.stringify(data) !== JSON.stringify(state.history);
+         state.history = data;
+         state.loading = false;
+         if (changed || !silent) render();
+     } catch(e) { 
+       console.error(e);
+       if (state.history.length > 0) state.loading = false;
+     } finally {
+       if (state.loading) { state.loading = false; render(); }
+     }
   };
   
-  load();
+  // Render cached data immediately, then refresh
+  if (cached) render();
+  load(!!cached);
   initPullToRefresh(scrollWrapper, load);
 
   return container;
 }
+

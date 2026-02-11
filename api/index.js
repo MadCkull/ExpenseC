@@ -12,6 +12,8 @@ import userRoutes from './routes/users.js';
 import expenseRoutes from './routes/expenses.js';
 import eventsRoutes from './routes/events.js';
 import settingsRoutes from './routes/settings.js';
+import analyticsRoutes from './routes/analytics.js';
+import jokersRoutes from './routes/gandus.js';
 
 const app = express();
 
@@ -21,17 +23,16 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Initialize DB
-// In Vercel, this runs on cold starts.
 initDB().catch(console.error);
 
 // API Routes
-// Note: Vercel maps /api/* to this file if configured in vercel.json 
-// or if this is api/index.js, it handles /api
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/gandus', jokersRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

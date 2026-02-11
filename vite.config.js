@@ -7,7 +7,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        id: "https://expensec.dummy.app/",
+        id: "/",
         name: "ExpenseC",
         short_name: "ExpenseC",
         start_url: "/?source=pwa",
@@ -49,6 +49,13 @@ export default defineConfig({
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/api'),
             handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: ({ url }) => 
+              url.pathname.startsWith('/@vite/') || 
+              url.pathname.startsWith('/node_modules/') ||
+              url.pathname.includes('vite.svg'),
+            handler: 'NetworkOnly'
           },
           {
             urlPattern: /^https:\/\/cdn\.jsdelivr\.net/,

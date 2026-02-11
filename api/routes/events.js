@@ -122,7 +122,7 @@ router.get('/analytics', async (req, res) => {
      // 2. Spending by User (Global Aggregation for selected range)
      const usersQuery = {
         sql: `
-          SELECT u.id, u.name, u.avatar, COALESCE(SUM(x.amount), 0) as total
+          SELECT u.id, u.name, COALESCE(SUM(x.amount), 0) as total
           FROM expenses x
           JOIN users u ON x.user_id = u.id
           JOIN events e ON x.event_id = e.id
