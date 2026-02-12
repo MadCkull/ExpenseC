@@ -99,6 +99,12 @@ export async function initDB() {
       });
     }
 
+    // Performance Indexes
+    try {
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_events_archived_at ON events(archived_at)");
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_events_gandu_id ON events(gandu_id)");
+    } catch(e) { /* ignore if already exists */ }
+
     isInitialized = true;
     console.log("Database initialized successfully");
   } catch (err) {

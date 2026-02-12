@@ -451,8 +451,8 @@ input[type="number"] {
   }
 }
 
-.skeleton-text { height: 16px; margin-bottom: 8px; border-radius: 4px; }
-.skeleton-avatar { width: 40px; height: 40px; border-radius: 50%; }
-.skeleton-card { height: 100px; border-radius: 16px; margin-bottom: 16px; }
-.skeleton-row { height: 60px; border-radius: 12px; margin-bottom: 12px; }
+.skeleton-text { height: 16px; margin-bottom: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.05); }
+.skeleton-avatar { width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.05); }
+.skeleton-card { height: 100px; border-radius: 16px; margin-bottom: 16px; background: rgba(255, 255, 255, 0.05); }
+.skeleton-row { height: 60px; border-radius: 12px; margin-bottom: 12px; background: rgba(255, 255, 255, 0.05); }
 

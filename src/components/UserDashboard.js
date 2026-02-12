@@ -81,8 +81,8 @@ export function createUserDashboard({ role, onLogout }) {
           ` : `<p class="text-secondary text-xs mt-1">No Active Event</p>`}
         </div>
         <div class="flex items-center gap-sm">
-          <button class="ios-btn secondary" id="gandu-btn" style="width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center; position: relative; overflow: hidden;">
-            <img src="/gandu.svg" style="width: 24px; height: 24px; object-fit: contain;" alt="Gandu">
+          <button id="gandu-btn" style="background: rgba(10, 132, 255, 0.1); border: 1px solid rgba(10, 132, 255, 0.3); border-radius: 30px; padding: 0 12px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
+            <span style="font-size: 10px; font-weight: 800; color: var(--ios-blue); text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;">Gandu List</span>
           </button>
           <button class="ios-btn secondary" id="history-btn" style="width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-clock-rotate-left"></i></button>
           <button class="ios-btn secondary" id="analytics-btn" style="width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-chart-line"></i></button>
@@ -152,7 +152,7 @@ export function createUserDashboard({ role, onLogout }) {
                     ${isGanduWarning ? '1 Gandu Left!' : 'Collecting Expenses...'}
                 </div>
                 <div class="text-xs ${isGanduWarning ? 'text-red opacity-80' : 'text-blue'}">
-                    ${isGanduWarning ? '(Name will be added to Gandu List)' : `${remaining} friend${remaining > 1 ? 's' : ''} left`}
+                    ${isGanduWarning ? '(Name has been added to Gandu List)' : `${remaining} friend${remaining > 1 ? 's' : ''} left`}
                 </div>
              </div>
           </div>
@@ -363,7 +363,7 @@ export function createUserDashboard({ role, onLogout }) {
 
                     <!-- Center: User -->
                     <div style="flex: 0 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                        ${renderAvatar({ name: s.to.name, avatar: s.to.avatar }, 32)}
+                        ${renderAvatar({ name: s.to.name, avatar: s.to.avatar, id: s.to.user_id }, 32)}
                         <span class="text-[11px] font-bold text-white leading-tight">${s.to.name}</span>
                     </div>
 
@@ -385,7 +385,7 @@ export function createUserDashboard({ role, onLogout }) {
 
                     <!-- Center: User -->
                     <div style="flex: 0 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                        ${renderAvatar({ name: s.from.name, avatar: s.from.avatar }, 32)}
+                        ${renderAvatar({ name: s.from.name, avatar: s.from.avatar, id: s.from.user_id }, 32)}
                         <span class="text-[11px] font-bold text-white leading-tight">${s.from.name}</span>
                     </div>
 
@@ -419,11 +419,6 @@ export function createUserDashboard({ role, onLogout }) {
            </button>
 
            <div style="padding: 24px 24px 12px; flex-shrink: 0; text-align: center;">
-              <div class="flex justify-center mb-2">
-                 <div style="width: 40px; height: 40px; background: rgba(10,132,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--ios-blue); font-size: 18px;">
-                    <i class="fa-solid fa-magic-wand-sparkles"></i>
-                 </div>
-              </div>
               <h2 class="text-xl font-bold">Settlement Guide</h2>
            </div>
            
@@ -447,7 +442,7 @@ export function createUserDashboard({ role, onLogout }) {
                         <div class="ios-card flex items-center gap-md p-3" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 16px; justify-content: space-between; margin-bottom: 0;">
                            <!-- Sender -->
                            <div class="flex flex-col items-center gap-xs" style="width: 70px;">
-                              ${renderAvatar({ name: s.from.name, avatar: s.from.avatar }, 42)}
+                              ${renderAvatar({ name: s.from.name, avatar: s.from.avatar, id: s.from.user_id }, 42)}
                               <span class="text-[11px] font-bold text-center leading-tight mt-1 text-white">${s.from.name.split(' ')[0]}</span>
                            </div>
                            
@@ -459,7 +454,7 @@ export function createUserDashboard({ role, onLogout }) {
                            
                            <!-- Receiver -->
                            <div class="flex flex-col items-center gap-xs" style="width: 70px;">
-                              ${renderAvatar({ name: s.to.name, avatar: s.to.avatar }, 42)}
+                              ${renderAvatar({ name: s.to.name, avatar: s.to.avatar, id: s.to.user_id }, 42)}
                               <span class="text-[11px] font-bold text-center leading-tight mt-1 text-white">${s.to.name.split(' ')[0]}</span>
                            </div>
                         </div>
@@ -504,12 +499,12 @@ export function createUserDashboard({ role, onLogout }) {
            
             <div id="gandu-content" style="flex: 1; overflow-y: auto; padding: 0 20px 20px; margin-top: 60px;">
                <div class="flex flex-col gap-sm mt-2">
-                  <div class="skeleton-card" style="height: 140px;"></div>
-                  <div class="skeleton-text w-24 mt-4"></div>
-                  <div class="skeleton-row"></div>
-                  <div class="skeleton-row"></div>
-                  <div class="skeleton-row"></div>
-                  <div class="skeleton-row"></div>
+                  <div class="skeleton-card skeleton" style="height: 140px;"></div>
+                  <div class="skeleton-text skeleton w-24 mt-4"></div>
+                  <div class="skeleton-row skeleton"></div>
+                  <div class="skeleton-row skeleton"></div>
+                  <div class="skeleton-row skeleton"></div>
+                  <div class="skeleton-row skeleton"></div>
                </div>
             </div>
         </div>
@@ -544,10 +539,10 @@ export function createUserDashboard({ role, onLogout }) {
                       </div>
                   ` : ''}
 
-                  <h3 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-1 mt-4 px-1">Top 3 Leaderboard</h3>
+                  <h3 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-1 mt-4 px-1">Top Gandus</h3>
                   <div class="flex flex-col gap-2">
                        ${stats.leaderboard.length > 0 ? stats.leaderboard.slice(0, 3).map((u, idx) => `
-                           <div class="ios-card flex justify-between items-center" style="padding: 12px 16px; margin-bottom: 0; background: rgba(255,255,255,0.03); border: none;">
+                           <div class="ios-card flex justify-between items-center" style="padding: 12px 16px; background: rgba(255,255,255,0.03); border: none;">
                                <div class="flex items-center gap-md">
                                    <span class="text-xs text-secondary w-4">${idx + 1}</span>
                                    ${renderAvatar({ name: u.user_name, avatar: u.user_avatar, id: u.user_id }, 36)}
@@ -561,7 +556,7 @@ export function createUserDashboard({ role, onLogout }) {
                   <h3 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-1 mt-6 px-1">Recent History</h3>
                    <div class="flex flex-col gap-2">
                        ${stats.history.length > 0 ? stats.history.map(h => `
-                           <div class="ios-card flex justify-between items-center" style="padding: 12px 16px; margin-bottom: 0; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.02);">
+                           <div class="ios-card flex justify-between items-center" style="padding: 12px 16px; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.02);">
                                <div class="flex items-center gap-md">
                                    ${renderAvatar({ name: h.user_name, avatar: h.user_avatar, id: h.user_id }, 30)}
                                    <div class="flex flex-col">
@@ -599,7 +594,7 @@ export function createUserDashboard({ role, onLogout }) {
                   <button class="ios-btn secondary user-select-btn" data-id="${user.user_id}" 
                           style="text-align:left; display:flex; justify-content:space-between; align-items:center; padding: 14px 18px; border-radius: 16px; background: rgba(255,255,255,0.05); border: 1px solid transparent; transition: all 0.2s; flex-shrink: 0; margin-bottom: 2px; width: 100%;">
                      <span class="font-bold text-white">${user.user_name}</span>
-                     ${renderAvatar({ name: user.user_name, avatar: user.user_avatar }, 32)}
+                     ${renderAvatar({ name: user.user_name, avatar: user.user_avatar, id: user.user_id }, 32)}
                   </button>
                 `).join('')}
               </div>

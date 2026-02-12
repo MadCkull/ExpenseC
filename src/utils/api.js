@@ -51,16 +51,31 @@ export const api = {
   gandus: {
     _cache: null,
     _lastFetch: 0,
+    _promise: null,
     stats: async function() {
       const now = Date.now();
-      if (this._cache && (now - this._lastFetch < 300000)) { // 5 min cache
+      // 1. If we have fresh cache, return it
+      if (this._cache && (now - this._lastFetch < 300000)) {
         return this._cache;
       }
-      this._cache = await fetchJson('/gandus/stats');
-      this._lastFetch = now;
-      return this._cache;
+      // 2. If a fetch is already in progress, wait for it
+      if (this._promise) return this._promise;
+
+      // 3. Otherwise, start a new fetch
+      this._promise = (async () => {
+        try {
+          const data = await fetchJson('/gandus/stats');
+          this._cache = data;
+          this._lastFetch = Date.now();
+          return data;
+        } finally {
+          this._promise = null; // Clear promise when done
+        }
+      })();
+
+      return this._promise;
     },
-    invalidate: function() { this._cache = null; }
+    invalidate: function() { this._cache = null; this._promise = null; }
   },
   settings: {
     updatePins: (admin_pin, user_pin) => fetchJson('/settings/pins', { method: 'POST', body: JSON.stringify({ admin_pin, user_pin }) }),

@@ -85,29 +85,30 @@ router.post('/update', async (req, res) => {
       });
 
       // Gandu Logic: If was null, and now is NOT null, check if this completes the group
-      if (wasNull && amount !== null) {
           const allExpensesResult = await db.execute({
             sql: 'SELECT user_id, amount FROM expenses WHERE event_id = ?',
             args: [activeEvent.id]
           });
           const allExpenses = allExpensesResult.rows;
-          const remaining = allExpenses.filter(e => e.amount === null).length;
+          const remainingUsers = allExpenses.filter(e => e.amount === null);
 
-          if (remaining === 0) {
-              // This user is the Gandu! Only set if not already set.
+          // Proactive Identification: If only 1 person is left, they are the Gandu!
+          if (remainingUsers.length === 1) {
+              const identifiedGanduId = remainingUsers[0].user_id;
+
               const eventDetail = await db.execute({
                 sql: 'SELECT gandu_id FROM events WHERE id = ?',
                 args: [activeEvent.id]
               });
+              
               if (eventDetail.rows[0] && eventDetail.rows[0].gandu_id === null) {
                   await db.execute({
                     sql: 'UPDATE events SET gandu_id = ? WHERE id = ?',
-                    args: [user_id, activeEvent.id]
+                    args: [identifiedGanduId, activeEvent.id]
                   });
-                  console.log(`Gandu identified for event ${activeEvent.id}: User ${user_id}`);
+                  console.log(`Gandu identified proactive (1 left): User ${identifiedGanduId}`);
               }
           }
-      }
     } else {
       await db.execute({
         sql: 'INSERT INTO expenses (event_id, user_id, amount) VALUES (?, ?, ?)',
