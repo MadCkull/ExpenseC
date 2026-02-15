@@ -3,6 +3,7 @@ import { initPullToRefresh } from '../utils/pullToRefresh.js';
 import { renderAvatar } from '../utils/ui.js';
 import { userStore } from '../utils/userStore.js';
 import Chart from 'chart.js/auto';
+import { formatToEng, uiDate, parseFromEng } from '../utils/dateUtils.js';
 
 export function createAnalyticsDashboard({ onBack, initialDateRange }) {
   const container = document.createElement('div');
@@ -25,7 +26,7 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
 
   const render = () => {
     let rangeText = (state.dateRange.start && state.dateRange.end) 
-        ? `${state.dateRange.start} - ${state.dateRange.end}`
+        ? `${uiDate(state.dateRange.start)} - ${uiDate(state.dateRange.end)}`
         : 'All Time';
 
     let html = `
@@ -118,7 +119,7 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
                            </div>
                            <div class="text-right">
                                <div class="text-red font-bold text-md whitespace-nowrap">£${highlights.max.total_amount.toFixed(2)}</div>
-                               <div class="text-[9px] text-secondary opacity-60 mt-0.5">${new Date(highlights.max.start_date).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</div>
+                               <div class="text-[9px] text-secondary opacity-60 mt-0.5">${uiDate(highlights.max.start_date)}</div>
                            </div>
                        </div>
                    ` : ''}
@@ -219,13 +220,13 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
       if (hiddenInput) {
           const fp = flatpickr(hiddenInput, {
               mode: "range",
-              dateFormat: "Y-m-d",
+              dateFormat: "d-M-Y",
               defaultDate: [state.dateRange.start, state.dateRange.end],
               theme: "dark",
               onChange: (selectedDates) => {
                   if (selectedDates.length === 2) {
-                      state.dateRange.start = selectedDates[0].toISOString().split('T')[0];
-                      state.dateRange.end = selectedDates[1].toISOString().split('T')[0];
+                      state.dateRange.start = formatToEng(selectedDates[0]);
+                      state.dateRange.end = formatToEng(selectedDates[1]);
                       loadData();
                   } else if (selectedDates.length === 0) {
                       // Clear
@@ -257,7 +258,7 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
           new Chart(trendCanvas, {
               type: 'line',
               data: {
-                  labels: timeline.map(t => new Date(t.start_date).toLocaleDateString(undefined, {month:'short', day:'numeric'})),
+                  labels: timeline.map(t => uiDate(t.start_date)),
                   datasets: [{
                       label: 'Spending',
                       data: timeline.map(t => t.total_amount),

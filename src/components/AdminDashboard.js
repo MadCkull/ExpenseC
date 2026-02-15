@@ -7,6 +7,7 @@ import { userStore } from '../utils/userStore.js';
 import { compressImage } from '../utils/image.js';
 import flatpickr from 'flatpickr';
 import 'flatpickr/dist/flatpickr.min.css';
+import { formatToEng, uiDate } from '../utils/dateUtils.js';
 
 export function createAdminDashboard({ onBack }) {
   const container = document.createElement('div');
@@ -151,7 +152,7 @@ export function createAdminDashboard({ onBack }) {
         html += '<div class="text-center text-secondary">No history available</div>';
       } else {
         archived.forEach(ev => {
-             const range = ev.start_date ? `${ev.start_date} - ${ev.end_date}` : new Date(ev.created_at).toLocaleDateString();
+             const range = ev.start_date ? `${uiDate(ev.start_date)} - ${uiDate(ev.end_date)}` : new Date(ev.created_at).toLocaleDateString();
              html += `
                 <div class="swipe-item-container mb-3" style="border-radius: 13px;">
                    <div class="swipe-item-actions" style="background: transparent; width: 70px;">
@@ -236,12 +237,12 @@ export function createAdminDashboard({ onBack }) {
          const dateBtn = container.querySelector("#trigger-dates-btn");
          const picker = flatpickr(dateInput, {
              mode: "range",
-             dateFormat: "Y-m-d",
+             dateFormat: "d-M-Y",
              theme: "dark",
              onChange: (selectedDates) => {
                 if (selectedDates.length === 2) {
-                   const s = selectedDates[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                   const e = selectedDates[1].toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                   const s = formatToEng(selectedDates[0]);
+                   const e = formatToEng(selectedDates[1]);
                    container.querySelector('#date-btn-text').textContent = `${s} - ${e}`;
                 }
              }

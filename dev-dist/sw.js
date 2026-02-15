@@ -82,7 +82,7 @@ define(['./workbox-8839f217'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "index.html",
-    "revision": "0.52ia3he5bi8"
+    "revision": "0.g6mfjgdru88"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
@@ -92,6 +92,9 @@ define(['./workbox-8839f217'], (function (workbox) { 'use strict';
   workbox.registerRoute(({
     url
   }) => url.pathname.startsWith("/api"), new workbox.NetworkOnly(), 'GET');
+  workbox.registerRoute(({
+    url
+  }) => url.pathname.startsWith("/@vite/") || url.pathname.startsWith("/node_modules/") || url.pathname.includes("vite.svg"), new workbox.NetworkOnly(), 'GET');
   workbox.registerRoute(/^https:\/\/cdn\.jsdelivr\.net/, new workbox.CacheFirst({
     "cacheName": "external-resources",
     plugins: [new workbox.ExpirationPlugin({

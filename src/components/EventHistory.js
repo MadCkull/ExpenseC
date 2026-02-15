@@ -1,6 +1,7 @@
 import { api } from '../utils/api.js';
 import { initPullToRefresh } from '../utils/pullToRefresh.js';
 import { cache, CACHE_KEYS, TTL } from '../utils/cache.js';
+import { uiDate } from '../utils/dateUtils.js';
 
 export function createEventHistory({ onBack, onSelectEvent }) {
   const container = document.createElement('div');

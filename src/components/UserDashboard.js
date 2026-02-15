@@ -4,6 +4,7 @@ import { renderAvatar } from '../utils/ui.js';
 import { createImageViewer } from './ImageViewer.js';
 import { cache, CACHE_KEYS, TTL } from '../utils/cache.js';
 import { userStore } from '../utils/userStore.js';
+import { uiDate } from '../utils/dateUtils.js';
 
 export function createUserDashboard({ role, onLogout }) {
   const container = document.createElement('div');
@@ -23,7 +24,8 @@ export function createUserDashboard({ role, onLogout }) {
     eventName: '',
     active: cached?.active ?? true,
     event: cached?.event || null,
-    currentUserId: localStorage.getItem('expensec_user_id')
+    currentUserId: localStorage.getItem('expensec_user_id'),
+    kingUserId: cached?.kingUserId || null
   };
 
   const unsubscribe = userStore.subscribe(() => {
@@ -76,7 +78,7 @@ export function createUserDashboard({ role, onLogout }) {
           ${state.active && state.event ? `
              <div class="mt-1">
                 <div class="text-sm font-semibold">${state.event.name}</div>
-                <div class="text-xs text-secondary font-mono">${state.event.start_date} - ${state.event.end_date}</div>
+                <div class="text-xs text-secondary font-mono">${uiDate(state.event.start_date)} - ${uiDate(state.event.end_date)}</div>
              </div>
           ` : `<p class="text-secondary text-xs mt-1">No Active Event</p>`}
         </div>
@@ -162,8 +164,11 @@ export function createUserDashboard({ role, onLogout }) {
 
   const renderHeroInput = (user) => {
       const hasEntered = user.amount !== null;
+      const isKing = state.kingUserId && state.kingUserId == user.user_id;
+
       return `
-        <div class="ios-card" style="padding: 20px; background: rgba(255,255,255,0.05); border: 1px solid ${hasEntered ? 'var(--ios-blue)' : 'rgba(255,255,255,0.1)'};">
+        <div class="ios-card ${isKing ? 'is-king' : ''}" style="padding: 20px; background: rgba(255,255,255,0.05); border: 1px solid ${hasEntered ? 'var(--ios-blue)' : (isKing ? 'rgba(255,215,0,0.4)' : 'rgba(255,255,255,0.1)')}; position: relative;">
+           ${isKing ? `<span class="gandu-badge"><i class="fa-solid fa-crown king-crown"></i> Gandu of the Group</span>` : ''}
            <div class="flex justify-between items-center">
               <div class="flex items-center gap-md">
                  ${renderAvatar({ name: user.user_name, avatar: user.user_avatar, id: user.user_id }, 44, hasEntered ? 'hero-entered' : '')}
@@ -191,11 +196,18 @@ export function createUserDashboard({ role, onLogout }) {
 
   const renderCollaboratorRow = (user) => {
       const hasEntered = user.amount !== null;
+      const isKing = state.kingUserId && state.kingUserId == user.user_id;
+
       return `
-        <div class="ios-card flex justify-between items-center" style="padding: 14px 16px; margin-bottom: 0; background: rgba(255,255,255,0.02); border: none;">
+        <div class="ios-card ${isKing ? 'is-king' : ''} flex justify-between items-center" style="padding: 14px 16px; margin-bottom: 0; background: rgba(255,255,255,0.02); border: ${isKing ? '1px solid rgba(255,215,0,0.2)' : 'none'}; position: relative;">
+          ${isKing ? `<span class="gandu-badge"><i class="fa-solid fa-crown king-crown"></i> Gandu of the Group</span>` : ''}
           <div class="flex items-center gap-md">
              ${renderAvatar({ name: user.user_name, avatar: user.user_avatar, id: user.user_id }, 42)}
-             <div class="text-md font-medium text-white">${user.user_name}</div>
+             <div class="flex flex-col">
+                 <div class="flex items-center gap-xs">
+                    <div class="text-md font-medium text-white">${user.user_name}</div>
+                 </div>
+             </div>
           </div>
           <div class="flex flex-col items-end">
              ${hasEntered 
@@ -520,7 +532,7 @@ export function createUserDashboard({ role, onLogout }) {
       modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
 
       modal.querySelector('#gandu-info-btn').addEventListener('click', () => {
-          alert("What is a Gandu?\n\nThe Gandu is the last person to enter their expenses in an event. It's a fun way to encourage everyone to stay up to date!");
+          alert("Who's Gandu?\n\nThe legendary genius who always manages to be the last human alive to enter their expenses. Basic timing defeats him every week.\nEnjoy the emotional damage.");
       });
 
       try {
@@ -553,7 +565,7 @@ export function createUserDashboard({ role, onLogout }) {
                        `).join('') : '<p class="text-center text-secondary text-sm py-4">No gandus yet!</p>'}
                   </div>
 
-                  <h3 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-1 mt-6 px-1">Recent History</h3>
+                  <h3 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-1 mt-6 px-1">Recent Gandus</h3>
                    <div class="flex flex-col gap-2">
                        ${stats.history.length > 0 ? stats.history.map(h => `
                            <div class="ios-card flex justify-between items-center" style="padding: 12px 16px; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.02);">
@@ -563,7 +575,7 @@ export function createUserDashboard({ role, onLogout }) {
                                        <span class="text-sm font-medium">${h.user_name}</span>
                                    </div>
                                </div>
-                               <span class="text-[10px] text-secondary italic">${new Date(h.archived_at).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</span>
+                               <span class="text-[10px] text-secondary italic">${uiDate(h.archived_at)}</span>
                            </div>
                        `).join('') : '<p class="text-center text-secondary text-sm py-4">The history is empty.</p>'}
                   </div>
@@ -646,26 +658,32 @@ export function createUserDashboard({ role, onLogout }) {
       render();
     }
     try {
-       const data = await api.expenses.current();
-       // Cache the fresh data
-       cache.set(CACHE_KEYS.CURRENT_EXPENSES, {
-         expenses: data.expenses,
-         stats: data.stats,
-         event: data.event,
-         active: data.active
-       });
-       // Check if data actually changed before re-rendering
-       const changed = JSON.stringify(data.expenses) !== JSON.stringify(state.expenses)
-                    || JSON.stringify(data.stats) !== JSON.stringify(state.stats)
-                    || data.active !== state.active;
-       state.expenses = data.expenses;
-       state.stats = data.stats || { total: 0, users_count: 0, per_head: 0 };
-       state.event = data.event;
-       state.active = data.active;
-       state.loading = false;
-       if (changed || !silent) {
-         render();
-       }
+        const data = await api.expenses.current();
+        const ganduStats = await api.gandus.stats();
+        const kingUserId = ganduStats.king ? ganduStats.king.user_id : null;
+
+        // Cache the fresh data
+        cache.set(CACHE_KEYS.CURRENT_EXPENSES, {
+          expenses: data.expenses,
+          stats: data.stats,
+          event: data.event,
+          active: data.active,
+          kingUserId: kingUserId
+        });
+        // Check if data actually changed before re-rendering
+        const changed = JSON.stringify(data.expenses) !== JSON.stringify(state.expenses)
+                     || JSON.stringify(data.stats) !== JSON.stringify(state.stats)
+                     || data.active !== state.active
+                     || kingUserId !== state.kingUserId;
+        state.expenses = data.expenses;
+        state.stats = data.stats || { total: 0, users_count: 0, per_head: 0 };
+        state.event = data.event;
+        state.active = data.active;
+        state.kingUserId = kingUserId;
+        state.loading = false;
+        if (changed || !silent) {
+          render();
+        }
     } catch (e) {
        console.error(e);
        // If we had cached data, just keep showing it (no error flash)

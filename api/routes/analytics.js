@@ -1,5 +1,6 @@
 import express from 'express';
 import db from '../database/db.js';
+import { formatToEng, parseFromEng } from '../utils/dateUtils.js';
 
 const router = express.Router();
 
@@ -21,7 +22,7 @@ router.get('/summary', async (req, res) => {
     // Simpler logic: Event Start Date needed. 
     // Let's assume we filter by Event Start Date for simplicity and consistency.
     dateFilter = 'date(start_date) >= ?';
-    args.push(start_date);
+    args.push(parseFromEng(start_date));
   }
   
   if (end_date) {
@@ -30,7 +31,7 @@ router.get('/summary', async (req, res) => {
       } else {
           dateFilter = 'date(end_date) <= ?';
       }
-      args.push(end_date);
+      args.push(parseFromEng(end_date));
   }
 
   try {
@@ -101,7 +102,10 @@ router.get('/summary', async (req, res) => {
             count: stats.total_events || 0,
             avg: stats.avg_cost || 0
         },
-        timeline: timeline,
+        timeline: timeline.map(t => ({
+            ...t,
+            start_date: formatToEng(t.start_date)
+        })),
         by_user: byUser,
         highlights: {
             max: maxEvent,

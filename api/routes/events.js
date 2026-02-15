@@ -1,5 +1,6 @@
 import express from 'express';
 import db from '../database/db.js';
+import { formatToEng, parseFromEng } from '../utils/dateUtils.js';
 
 const router = express.Router();
 
@@ -15,6 +16,8 @@ router.get('/history', async (req, res) => {
        if (event.is_active === 0 && event.settlements_json) {
            return {
               ...event,
+              start_date: formatToEng(event.start_date),
+              end_date: formatToEng(event.end_date),
               total_amount: event.total_amount,
               per_person: event.per_head,
               participants_count: event.participants_count,
@@ -34,6 +37,8 @@ router.get('/history', async (req, res) => {
        
        return {
           ...event,
+          start_date: formatToEng(event.start_date),
+          end_date: formatToEng(event.end_date),
           total_amount: total,
           per_person: perHead,
           participants_count: count
@@ -62,7 +67,7 @@ router.post('/start', async (req, res) => {
     // Insert new event
     const result = await db.execute({
       sql: 'INSERT INTO events (name, start_date, end_date) VALUES (?, ?, ?)',
-      args: [name, start_date, end_date]
+      args: [name, parseFromEng(start_date), parseFromEng(end_date)]
     });
     const eventId = String(result.lastInsertRowid);
 
@@ -137,7 +142,9 @@ router.get('/analytics', async (req, res) => {
      res.json({
         timeline: eventsResult.rows.map(e => ({
             ...e,
-            created_at: e.start_date
+            start_date: formatToEng(e.start_date),
+            end_date: formatToEng(e.end_date),
+            created_at: formatToEng(e.start_date)
         })),
         by_user: usersResult.rows
      });

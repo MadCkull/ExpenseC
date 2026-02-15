@@ -4,7 +4,11 @@ import { createAdminDashboard } from './components/AdminDashboard.js';
 import { createAnalyticsDashboard } from './components/AnalyticsDashboard.js';
 import { createEventHistory } from './components/EventHistory.js';
 import { userStore } from './utils/userStore.js';
+import { injectSpeedInsights } from '@vercel/speed-insights';
 import './styles/main.css';
+
+// Initialize Vercel Speed Insights
+injectSpeedInsights();
 
 const app = document.querySelector('#app');
 
