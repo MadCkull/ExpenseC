@@ -71,7 +71,7 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
     html += `
       <div class="flex flex-row gap-4 mb-8">
          <!-- Left Col (40%): Stats -->
-         <div class="flex flex-col gap-4" style="flex: 4;">
+         <div class="flex flex-col gap-4" style="flex: 4;" style="padding-bottom: 14px;">
              
              <!-- Total Card -->
              <div class="ios-card flex-1 shadow-md" style="
@@ -147,15 +147,15 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
     const colors = ['#3B82F6', '#10B981', '#EF4444', '#8B5CF6', '#F59E0B', '#06B6D4', '#EC4899'];
 
     html += `
-       <div class="ios-card mb-8">
+       <div class="ios-card mb-4">
           <div class="flex justify-between items-center mb-6">
              <h3 class="text-md font-semibold text-white">Who Paid What?</h3>
           </div>
           
           <div class="flex flex-col items-center gap-6">
               <div style="width: 220px; height: 220px; position:relative;">
-                  <canvas id="userChart"></canvas>
-                  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); text-align:center;">
+                  <canvas id="userChart" style="margin-top: -33%;"></canvas>
+                  <div style="position:absolute; top:31%; left:50%; transform:translate(-50%, -50%); text-align:center;">
                      <div class="text-[10px] text-secondary uppercase tracking-wider font-bold">Total</div>
                      <div class="text-xl font-bold text-white">£${totalSum.toFixed(2)}</div>
                   </div>
@@ -166,7 +166,7 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
 
     // --- 3. Spending Trends Chart (Moved ABOVE Leaderboard) ---
     html += `
-       <div class="ios-card mb-8">
+       <div class="ios-card mb-4">
           <div class="flex justify-between items-baseline mb-4">
              <h3 class="text-md font-semibold text-white">Spending Trend</h3>
           </div>
@@ -178,16 +178,16 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
 
     // --- 4. Leaderboard List (Moved to Bottom) ---
     html += `
-       <div class="ios-card mb-8" style="background: transparent; padding: 0; border: none;">
+       <div class="ios-card mb-4" style="background: transparent; padding: 0; border: none;">
           <h4 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-3 px-1">Leaderboard</h4>
-          <div class="flex flex-col gap-3">
+          <div class="flex flex-col gap-sm">
              ${by_user && by_user.length > 0 ? by_user.map((u, index) => {
                 const percentage = totalSum > 0 ? ((u.total_paid / totalSum) * 100) : 0;
                 const color = colors[index % colors.length];
 
                 return `
-                   <div class="flex flex-col gap-xs p-1 rounded-2xl" style="background: rgba(255,255,255,0.02); border-radius: 16px; overflow: hidden; position: relative; padding: 2px 13px 4px 5px; margin: 3px;">
-                      <div class="flex justify-between items-center p-3 px-4 relative z-10">
+                   <div class="flex flex-col gap-xs p-1 rounded-2xl" style="background: rgba(255,255,255,0.02); border-radius: 16px; overflow: hidden; position: relative; padding: 2px 13px 4px 5px;">
+                      <div class="flex justify-between items-center px-1 relative z-10">
                          <div class="flex items-center gap-3">
                             ${renderAvatar({ name: u.name, avatar: u.avatar, id: u.id }, 38)}
                             <span class="text-sm font-semibold text-white pt-0.5">${u.name}</span>

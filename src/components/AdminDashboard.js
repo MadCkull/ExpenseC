@@ -95,7 +95,7 @@ export function createAdminDashboard({ onBack }) {
       
       state.users.forEach(user => {
         html += `
-          <div class="ios-card flex justify-between items-center user-edit-row" data-id="${user.id}" style="margin-bottom: 8px; padding: 12px 16px; cursor:pointer;">
+          <div class="ios-card flex justify-between items-center user-edit-row" data-id="${user.id}" style="padding: 12px 16px; cursor:pointer;">
              <div class="flex items-center gap-md">
                 ${renderAvatar(user, 40)}
                 <span class="text-md font-bold">${user.name}</span>
@@ -160,7 +160,7 @@ export function createAdminDashboard({ onBack }) {
                          <i class="fa-solid fa-trash-can swipe-delete-icon" style="font-size: 16px; color: #8F1915; opacity: 0; transform: scale(0.6); transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);"></i>
                       </button>
                    </div>
-                   <div class="swipe-item-content ios-card" data-id="${ev.id}" style="margin-bottom: 0; background: rgba(44, 44, 46, 0.45); padding: 12px 16px; border: 1px solid rgba(255,255,255,0.03); margin-bottom: 12px;">
+                   <div class="swipe-item-content ios-card" data-id="${ev.id}" style="margin-bottom: 0; background: rgba(44, 44, 46, 0.45); padding: 12px 16px; border: 1px solid rgba(255,255,255,0.03);">
                       <div class="flex justify-between items-center mb-5" style="margin-bottom: 5px;">
                          <span class="text-[14px] font-bold tracking-tight text-white opacity-90">${ev.name}</span>
                          <span class="text-blue font-bold text-[14px]">£${Number(ev.per_person || 0).toFixed(2)} <span class="text-[9px] opacity-40 uppercase font-bold tracking-wider">/head</span></span>

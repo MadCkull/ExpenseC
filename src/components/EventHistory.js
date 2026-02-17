@@ -2,6 +2,7 @@ import { api } from '../utils/api.js';
 import { initPullToRefresh } from '../utils/pullToRefresh.js';
 import { cache, CACHE_KEYS, TTL } from '../utils/cache.js';
 import { uiDate } from '../utils/dateUtils.js';
+import { showSettlementModal } from '../utils/settlements.js';
 
 export function createEventHistory({ onBack, onSelectEvent }) {
   const container = document.createElement('div');
@@ -19,6 +20,8 @@ export function createEventHistory({ onBack, onSelectEvent }) {
   };
 
   const render = () => {
+    const currentUserId = localStorage.getItem('expensec_user_id');
+
     let html = `
       <header class="flex justify-between items-center mb-6 safe-area-top">
         <div class="flex items-center gap-sm">
@@ -40,19 +43,31 @@ export function createEventHistory({ onBack, onSelectEvent }) {
      } else {
          html += '<div class="flex flex-col gap-sm">';
          state.history.forEach(ev => {
-              const range = ev.start_date ? `${ev.start_date} - ${ev.end_date}` : new Date(ev.created_at).toLocaleDateString();
+              const range = ev.start_date ? `${uiDate(ev.start_date)} - ${uiDate(ev.end_date)}` : new Date(ev.created_at).toLocaleDateString();
               const isActive = ev.is_active === 1;
               const perHead = typeof ev.per_person === 'number' ? ev.per_person.toFixed(2) : ev.per_person;
               
               html += `
-                <div class="ios-card event-card cursor-pointer" data-id="${ev.id}" style="margin-bottom: 12px; transition: transform 0.2s;">
-                   <div class="flex justify-between mb-2">
-                     <span class="font-bold text-[16px] tracking-tight">${ev.name} ${isActive ? '<span class="text-[10px] uppercase font-bold text-green bg-green-900/10 px-2 py-0.5 rounded-full ml-2 border border-green/20" style="vertical-align: middle;">Active</span>' : ''}</span>
-                     <span class="text-blue font-bold text-[16px]">£${perHead} <span class="text-[9px] opacity-40 uppercase font-bold">/head</span></span>
+                <div class="event-card ${isActive ? 'is-active' : ''} cursor-pointer" data-id="${ev.id}">
+                   <button class="analytics-icon-btn" title="View Analytics">
+                      <i class="fa-solid fa-chart-line"></i>
+                   </button>
+
+                   <div class="flex flex-col gap-0.5">
+                     <span class="font-bold text-[18px] tracking-tight text-white leading-tight pr-10">${ev.name}</span>
+                     <span class="text-[9px] text-secondary font-medium opacity-50 uppercase tracking-widest">${range}</span>
                    </div>
-                   <div class="flex justify-between text-[11px] text-secondary font-medium">
-                     <span class="opacity-60">${range}</span>
-                     <span class="opacity-80">Total: <span class="text-white">£${(ev.total_amount || 0).toFixed(2)}</span></span>
+
+                   <div class="event-stats-row">
+                      <div class="stat-inline">
+                         <span class="stat-inline-label"><i class="fa-solid fa-users" style="font-size: 14px;"></i></span>
+                         <span class="stat-inline-value">£${(ev.total_amount || 0).toFixed(2)}</span>
+                      </div>
+                      <div style="width: 1px; height: 16px; background: rgba(255,255,255,0.1);"></div>
+                      <div class="stat-inline">
+                         <span class="stat-inline-label"><i class="fa-solid fa-user" style="font-size: 12px;"></i></span>
+                         <span class="stat-inline-value text-blue">£${perHead}</span>
+                      </div>
                    </div>
                 </div>
               `;
@@ -65,12 +80,39 @@ export function createEventHistory({ onBack, onSelectEvent }) {
     container.querySelector('#back-btn').addEventListener('click', onBack);
     
     container.querySelectorAll('.event-card').forEach(card => {
-        card.addEventListener('click', () => {
+        card.addEventListener('click', (e) => {
+             // If analytics icon clicked, don't trigger settlement
+             if (e.target.closest('.analytics-icon-btn')) return;
+
              const id = parseInt(card.dataset.id);
-             const ev = state.history.find(e => e.id === id);
-             if (ev && onSelectEvent) {
-                 onSelectEvent(ev);
+             const ev = state.history.find(h => h.id === id);
+             if (ev && ev.settlements_json) {
+                 let settlements = ev.settlements_json;
+                 if (typeof settlements === 'string') {
+                     try { settlements = JSON.parse(settlements); } catch(err) { console.error(err); }
+                 }
+                 const currentUser = currentUserId ? { user_id: currentUserId } : null;
+                 showSettlementModal({ 
+                     settlements, 
+                     title: `Guide: ${ev.name}`,
+                     currentUser: currentUser 
+                 });
+             } else {
+                 // Fallback to analytics if no settlements (shouldn't happen for closed events)
+                 if (ev && onSelectEvent) onSelectEvent(ev);
              }
+        });
+    });
+
+    container.querySelectorAll('.analytics-icon-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const card = btn.closest('.event-card');
+            const id = parseInt(card.dataset.id);
+            const ev = state.history.find(h => h.id === id);
+            if (ev && onSelectEvent) {
+                onSelectEvent(ev);
+            }
         });
     });
   };

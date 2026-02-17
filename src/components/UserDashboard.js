@@ -5,6 +5,7 @@ import { createImageViewer } from './ImageViewer.js';
 import { cache, CACHE_KEYS, TTL } from '../utils/cache.js';
 import { userStore } from '../utils/userStore.js';
 import { uiDate } from '../utils/dateUtils.js';
+import { calculateSettlements, showSettlementModal, renderPersonalSummaryCard } from '../utils/settlements.js';
 
 export function createUserDashboard({ role, onLogout }) {
   const container = document.createElement('div');
@@ -132,8 +133,8 @@ export function createUserDashboard({ role, onLogout }) {
     } else if (allEntered) {
         return `
           <div class="ios-card mb-6 fade-in" style="background: linear-gradient(135deg, rgba(10,132,255,0.15), rgba(0,0,0,0.4)); border: 1px solid var(--ios-blue); position: relative;">
-            <button id="settlement-guide-btn" class="ios-btn secondary" style="position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; padding: 0; border-radius: 50%; background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-               <i class="fa-solid fa-magic-wand-sparkles" style="color: white; font-size: 14px;"></i>
+            <button id="settlement-guide-btn" class="suggestions-pill">
+               Suggestions
             </button>
             <div class="text-secondary text-xs mb-1 uppercase tracking-widest">PER PERSON TO PAY</div>
             <div class="text-xxl text-white font-bold">£${(stats?.per_head || 0)}</div>
@@ -240,7 +241,14 @@ export function createUserDashboard({ role, onLogout }) {
     });
     container.querySelector('#gandu-btn')?.addEventListener('click', showGanduModal);
 
-    container.querySelector('#settlement-guide-btn')?.addEventListener('click', showSettlementModal);
+    container.querySelector('#settlement-guide-btn')?.addEventListener('click', () => {
+        const { expenses, stats } = state;
+        const settlements = calculateSettlements(expenses, Number(stats.per_head));
+        showSettlementModal({ 
+            settlements, 
+            currentUser: state.expenses.find(u => u.user_id == state.currentUserId) 
+        });
+    });
     
     if (role === 'admin') {
        container.querySelector('#admin-btn')?.addEventListener('click', () => {
@@ -291,204 +299,18 @@ export function createUserDashboard({ role, onLogout }) {
     });
   };
 
-  const calculateSettlements = (expenses, perHead) => {
-      // Calculate individual balances (Positive = Owed, Negative = Owes)
-      const balances = expenses.map(u => ({
-          user_id: u.user_id,
-          name: u.user_name,
-          avatar: u.user_avatar,
-          balance: Number(u.amount || 0) - perHead
-      }));
-
-      // Split into debtors and creditors
-      const debtors = balances.filter(b => b.balance < -0.01).sort((a,b) => a.balance - b.balance);
-      const creditors = balances.filter(b => b.balance > 0.01).sort((a,b) => b.balance - a.balance);
-      
-      const settlements = [];
-      let d_idx = 0;
-      let c_idx = 0;
-
-      // Deep copy to not mutate
-      const d_list = debtors.map(d => ({...d, balance: Math.abs(d.balance)}));
-      const c_list = creditors.map(c => ({...c}));
-
-      while (d_idx < d_list.length && c_idx < c_list.length) {
-          const d = d_list[d_idx];
-          const c = c_list[c_idx];
-          const amount = Math.min(d.balance, c.balance);
-          
-          if (amount > 0.01) {
-              settlements.push({
-                  from: d,
-                  to: c,
-                  amount: amount
-              });
-          }
-          
-          d.balance -= amount;
-          c.balance -= amount;
-          
-          if (d.balance < 0.01) d_idx++;
-          if (c.balance < 0.01) c_idx++;
-      }
-      return settlements;
-  };
-
-  const renderPersonalSummaryCard = (currentUser, isInsideModal = false) => {
+  const renderDashboardSuggestions = () => {
       const { active, expenses, stats } = state;
       const allEntered = active && expenses.length > 0 && expenses.every(u => u.amount !== null);
+      const currentUser = expenses.find(u => u.user_id == state.currentUserId);
+      
       if (!allEntered || !currentUser) return '';
 
       const settlements = calculateSettlements(expenses, Number(stats.per_head));
-      const myDebts = settlements.filter(s => s.from.user_id == currentUser.user_id);
-      const myCredits = settlements.filter(s => s.to.user_id == currentUser.user_id);
-
-      const marginClass = isInsideModal ? '' : 'mb-6';
-      const background = isInsideModal ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.03)';
-      const headerText = isInsideModal ? '' : '<h3 class="text-xs text-secondary mb-3 uppercase tracking-widest px-1 font-bold">Suggestions</h3>';
-
-      if (myDebts.length === 0 && myCredits.length === 0) {
-          return `
-            ${headerText}
-            <div class="ios-card ${marginClass} fade-in" style="background: rgba(48, 209, 88, 0.1); border: 1px solid rgba(48, 209, 88, 0.2); padding: 16px;">
-               <div class="flex items-center gap-md">
-                  <div style="font-size: 24px;"><i class="fa-solid fa-circle-check text-green"></i></div>
-                  <div>
-                     <div class="text-sm font-bold text-white">You're all squared away!</div>
-                     <div class="text-[11px] text-secondary opacity-70 uppercase tracking-widest font-bold">No payments needed</div>
-                  </div>
-               </div>
-            </div>
-          `;
-      }
-
       return `
-        ${headerText}
-        <div class="flex flex-col gap-sm ${marginClass}">
-            ${myDebts.map(s => `
-                <div class="ios-card fade-in flex items-center" style="background: rgba(255, 69, 58, 0.1); border: 1px solid rgba(255, 69, 58, 0.2); padding: 12px 16px; margin-bottom: 0;">
-                    
-                    <!-- Left: Message -->
-                    <div style="flex: 1; text-align: left;">
-                         <span class="text-[11px] uppercase font-bold text-red opacity-80 tracking-wider">Pay to</span>
-                    </div>
-
-                    <!-- Center: User -->
-                    <div style="flex: 0 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                        ${renderAvatar({ name: s.to.name, avatar: s.to.avatar, id: s.to.user_id }, 32)}
-                        <span class="text-[11px] font-bold text-white leading-tight">${s.to.name}</span>
-                    </div>
-
-                    <!-- Right: Amount -->
-                    <div style="flex: 1; text-align: right;">
-                        <span class="text-lg font-bold text-red">£${s.amount.toFixed(2)}</span>
-                    </div>
-
-                </div>
-            `).join('')}
-
-            ${myCredits.map(s => `
-                <div class="ios-card fade-in flex items-center" style="background: rgba(48, 209, 88, 0.1); border: 1px solid rgba(48, 209, 88, 0.2); padding: 12px 16px; margin-bottom: 0;">
-                    
-                    <!-- Left: Message -->
-                    <div style="flex: 1; text-align: left;">
-                         <span class="text-[11px] uppercase font-bold text-green opacity-80 tracking-wider">Receive from</span>
-                    </div>
-
-                    <!-- Center: User -->
-                    <div style="flex: 0 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                        ${renderAvatar({ name: s.from.name, avatar: s.from.avatar, id: s.from.user_id }, 32)}
-                        <span class="text-[11px] font-bold text-white leading-tight">${s.from.name}</span>
-                    </div>
-
-                    <!-- Right: Amount -->
-                    <div style="flex: 1; text-align: right;">
-                        <span class="text-lg font-bold text-green">£${s.amount.toFixed(2)}</span>
-                    </div>
-                    
-                </div>
-            `).join('')}
-        </div>
+        <h3 class="text-xs text-secondary mb-3 uppercase tracking-widest px-1 font-bold">Suggestions</h3>
+        ${renderPersonalSummaryCard(currentUser, settlements)}
       `;
-  };
-
-  const showSettlementModal = () => {
-      if (document.getElementById('settlement-modal-root')) return;
-      
-      const { expenses, stats } = state;
-      const settlements = calculateSettlements(expenses, Number(stats.per_head));
-
-      const modal = document.createElement('div');
-      modal.id = 'settlement-modal-root';
-      modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); z-index:9999; display:flex; align-items:center; justify-content:center; padding: 20px;';
-      
-      modal.innerHTML = `
-        <div class="ios-card w-full fade-in safe-area-bottom" style="width: 100%; max-width: 420px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); padding: 0; background: var(--ios-card-bg); position: relative;">
-           
-           <!-- Compact Close Button -->
-           <button id="close-settlement-btn" style="position: absolute; top: 16px; right: 16px; width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.1); border: none; color: white; display: flex; align-items: center; justify-content: center; z-index: 100; cursor: pointer;">
-              <i class="fa-solid fa-xmark" style="font-size: 14px;"></i>
-           </button>
-
-           <div style="padding: 24px 24px 12px; flex-shrink: 0; text-align: center;">
-              <h2 class="text-xl font-bold">Settlement Guide</h2>
-           </div>
-           
-           <div style="flex: 1; overflow-y: auto; padding: 0 20px;">
-              <div class="flex flex-col gap-md" style="padding-bottom: 24px;">
-                 
-                 <!-- Personal Summary Section -->
-                 <h4 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-1 opacity-50 px-1">Your Personal Stake</h4>
-                 <div style="margin-bottom: 8px;">
-                    ${renderPersonalSummaryCard(state.expenses.find(u => u.user_id == state.currentUserId), true)}
-                 </div>
-
-                 <h4 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-1 opacity-50 px-1">Group Transactions</h4>
-                 
-                  ${settlements.length === 0 ? `
-                        <div class="text-center py-8 opacity-40">
-                           <i class="fa-solid fa-check-circle text-4xl mb-2"></i>
-                           <p>Everyone is settled up!</p>
-                        </div>
-                     ` : settlements.map(s => `
-                        <div class="ios-card flex items-center gap-md p-3" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 16px; justify-content: space-between; margin-bottom: 0;">
-                           <!-- Sender -->
-                           <div class="flex flex-col items-center gap-xs" style="width: 70px;">
-                              ${renderAvatar({ name: s.from.name, avatar: s.from.avatar, id: s.from.user_id }, 42)}
-                              <span class="text-[11px] font-bold text-center leading-tight mt-1 text-white">${s.from.name.split(' ')[0]}</span>
-                           </div>
-                           
-                           <!-- Arrow & Amount -->
-                           <div class="flex-1 flex flex-col items-center justify-center">
-                              <span class="text-[10px] text-secondary uppercase tracking-wider font-bold mb-1">Pays▹</span>
-                              <span class="text-sm font-bold mt-1 text-blue">£${s.amount.toFixed(2)}</span>
-                           </div>
-                           
-                           <!-- Receiver -->
-                           <div class="flex flex-col items-center gap-xs" style="width: 70px;">
-                              ${renderAvatar({ name: s.to.name, avatar: s.to.avatar, id: s.to.user_id }, 42)}
-                              <span class="text-[11px] font-bold text-center leading-tight mt-1 text-white">${s.to.name.split(' ')[0]}</span>
-                           </div>
-                        </div>
-                     `).join('')}
-              </div>
-           </div>
-           
-           <div style="height: 20px; flex-shrink: 0;"></div>
-        </div>
-      `;
-      document.body.appendChild(modal);
-      document.body.classList.add('modal-open');
-      
-      const closeModal = () => {
-          modal.remove();
-          document.body.classList.remove('modal-open');
-      };
-
-      modal.querySelector('#close-settlement-btn').addEventListener('click', closeModal);
-      modal.addEventListener('click', (e) => {
-         if (e.target === modal) closeModal();
-      });
   };
 
   const showGanduModal = async () => {
@@ -567,7 +389,7 @@ export function createUserDashboard({ role, onLogout }) {
 
                   <h3 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-1 mt-6 px-1">Recent Gandus</h3>
                    <div class="flex flex-col gap-2">
-                       ${stats.history.length > 0 ? stats.history.map(h => `
+                       ${stats.history.length > 0 ? stats.history.slice().reverse().map(h => `
                            <div class="ios-card flex justify-between items-center" style="padding: 12px 16px; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.02);">
                                <div class="flex items-center gap-md">
                                    ${renderAvatar({ name: h.user_name, avatar: h.user_avatar, id: h.user_id }, 30)}
