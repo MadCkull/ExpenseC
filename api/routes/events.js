@@ -11,7 +11,13 @@ router.get('/history', async (req, res) => {
     const eventsResult = await db.execute('SELECT * FROM events ORDER BY start_date DESC, created_at DESC');
     const events = eventsResult.rows;
     
-    const historyPromises = events.map(async (event) => {
+    // Pre-fetch live totals for active events in a single query (avoid N+1)
+    const liveTotalsResult = await db.execute(
+      'SELECT event_id, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM expenses GROUP BY event_id'
+    );
+    const liveTotals = new Map(liveTotalsResult.rows.map(r => [r.event_id, r]));
+
+    const history = events.map(event => {
        // If event is archived and has locked stats, use them
        if (event.is_active === 0 && event.settlements_json) {
            return {
@@ -25,27 +31,19 @@ router.get('/history', async (req, res) => {
            };
        }
 
-       // Otherwise calculate live (for active event)
-       const expensesResult = await db.execute({
-         sql: 'SELECT amount FROM expenses WHERE event_id = ?',
-         args: [event.id]
-       });
-       const expenses = expensesResult.rows;
-       const total = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-       const count = expenses.length > 0 ? expenses.length : 0;
-       const perHead = count > 0 ? (total / count).toFixed(2) : 0;
+       // Otherwise use pre-fetched live totals
+       const live = liveTotals.get(event.id) || { count: 0, total: 0 };
+       const perHead = live.count > 0 ? (live.total / live.count).toFixed(2) : 0;
        
        return {
           ...event,
           start_date: formatToEng(event.start_date),
           end_date: formatToEng(event.end_date),
-          total_amount: total,
+          total_amount: live.total,
           per_person: perHead,
-          participants_count: count
+          participants_count: live.count
        };
     });
-    
-    const history = await Promise.all(historyPromises);
     res.json(history);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -176,7 +174,7 @@ router.post('/archive', async (req, res) => {
     // 2. Fetch live data for snapshot
     const expensesResult = await db.execute({
       sql: `
-        SELECT e.amount, u.name, u.avatar, u.id as user_id
+        SELECT e.amount, u.id as user_id
         FROM expenses e
         JOIN users u ON e.user_id = u.id
         WHERE e.event_id = ?
@@ -193,8 +191,6 @@ router.post('/archive', async (req, res) => {
     const calculateSettlements = (exps, ph) => {
         const balances = exps.map(u => ({
             user_id: u.user_id,
-            name: u.name,
-            avatar: u.avatar,
             balance: (u.amount || 0) - ph
         }));
         const debtors = balances.filter(b => b.balance < -0.01).sort((a,b) => a.balance - b.balance);
@@ -207,8 +203,8 @@ router.post('/archive', async (req, res) => {
             const d = d_list[d_idx]; const c = c_list[c_idx]; const amt = Math.min(d.balance, c.balance);
             if (amt > 0.01) {
                 settlements.push({
-                    from: { name: d.name, avatar: d.avatar, user_id: d.user_id },
-                    to: { name: c.name, avatar: c.avatar, user_id: c.user_id },
+                    from: { user_id: d.user_id },
+                    to: { user_id: c.user_id },
                     amount: Number(amt.toFixed(2))
                 });
             }

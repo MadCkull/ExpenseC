@@ -13,6 +13,8 @@ const db = createClient({
 
 let isInitialized = false;
 
+import sharp from 'sharp';
+
 // Initialize Database Schema
 export async function initDB() {
   if (isInitialized) return;
@@ -30,6 +32,7 @@ export async function initDB() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         avatar TEXT,
+        avatar_thumb TEXT,
         is_active INTEGER DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -66,6 +69,46 @@ export async function initDB() {
       } catch (ee) {
         // Already exists
       }
+    }
+
+    // Migration: Add avatar_thumb to users table
+    try {
+      await db.execute("ALTER TABLE users ADD COLUMN avatar_thumb TEXT");
+      console.log("Migration: Added avatar_thumb to users table");
+    } catch (e) {
+        // Already exists
+    }
+
+    // Data Migration: Generate thumbnails for existing users
+    try {
+      const usersToMigrate = await db.execute("SELECT id, avatar FROM users WHERE avatar IS NOT NULL AND avatar_thumb IS NULL");
+      if (usersToMigrate.rows.length > 0) {
+        console.log(`Migration: Generating thumbnails for ${usersToMigrate.rows.length} users...`);
+        for (const row of usersToMigrate.rows) {
+          try {
+            // Check if avatar is valid base64
+            if (!row.avatar || !row.avatar.includes('base64,')) continue;
+            
+            const buffer = Buffer.from(row.avatar.split('base64,')[1], 'base64');
+            const thumbBuffer = await sharp(buffer)
+              .resize(64, 64, { fit: 'cover' })
+              .jpeg({ quality: 60 })
+              .toBuffer();
+              
+            const thumb = `data:image/jpeg;base64,${thumbBuffer.toString('base64')}`;
+            
+            await db.execute({
+              sql: "UPDATE users SET avatar_thumb = ? WHERE id = ?",
+              args: [thumb, row.id]
+            });
+          } catch (err) {
+            console.error(`Failed to generate thumb for user ${row.id}:`, err.message);
+          }
+        }
+        console.log("Migration: Thumbnails generated.");
+      }
+    } catch (e) {
+      console.error("Thumbnail migration error:", e);
     }
 
     await db.execute(`

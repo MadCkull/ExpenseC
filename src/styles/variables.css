@@ -14,6 +14,7 @@
   /* Glassmorphism */
   --glass-blur: blur(20px);
   --glass-border: 0.5px solid rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 
   /* Spacing */
   --spacing-xs: 4px;

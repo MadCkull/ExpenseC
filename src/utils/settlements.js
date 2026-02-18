@@ -1,4 +1,5 @@
 import { renderAvatar } from './ui.js';
+import { userStore } from './userStore.js';
 
 /**
  * Pure logic to calculate who pays who
@@ -6,8 +7,7 @@ import { renderAvatar } from './ui.js';
 export function calculateSettlements(expenses, perHead) {
     const balances = expenses.map(u => ({
         user_id: u.user_id,
-        name: u.user_name || u.name,
-        avatar: u.user_avatar || u.avatar,
+        // Name/Avatar removed from calculation logic, resolved at render time
         balance: Number(u.amount || 0) - perHead
     }));
 
@@ -28,8 +28,8 @@ export function calculateSettlements(expenses, perHead) {
         
         if (amount > 0.01) {
             settlements.push({
-                from: { name: d.name, avatar: d.avatar, user_id: d.user_id },
-                to: { name: c.name, avatar: c.avatar, user_id: c.user_id },
+                from: { user_id: d.user_id },
+                to: { user_id: c.user_id },
                 amount: amount
             });
         }
@@ -68,35 +68,41 @@ export function renderPersonalSummaryCard(user, settlements, isInsideModal = fal
 
     return `
       <div class="flex flex-col gap-sm">
-          ${myDebts.map(s => `
+          ${myDebts.map(s => {
+              const toName = userStore.getName(s.to.user_id) || 'Unknown';
+              const toAvatar = userStore.getAvatar(s.to.user_id);
+              return `
               <div class="ios-card fade-in flex items-center" style="background: rgba(255, 69, 58, 0.1); border: 1px solid rgba(255, 69, 58, 0.2); padding: 12px 16px; margin-bottom: 0;">
                   <div style="flex: 1; text-align: left;">
                        <span class="text-[11px] uppercase font-bold text-red opacity-80 tracking-wider">Pay to</span>
                   </div>
                   <div style="flex: 0 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                      ${renderAvatar({ name: s.to.name, avatar: s.to.avatar, id: s.to.user_id }, 32)}
-                      <span class="text-[11px] font-bold text-white leading-tight">${s.to.name}</span>
+                      ${renderAvatar({ name: toName, avatar: toAvatar, id: s.to.user_id }, 32)}
+                      <span class="text-[11px] font-bold text-white leading-tight">${toName}</span>
                   </div>
                   <div style="flex: 1; text-align: right;">
                       <span class="text-lg font-bold text-red">£${s.amount.toFixed(2)}</span>
                   </div>
               </div>
-          `).join('')}
+          `}).join('')}
 
-          ${myCredits.map(s => `
+          ${myCredits.map(s => {
+              const fromName = userStore.getName(s.from.user_id) || 'Unknown';
+              const fromAvatar = userStore.getAvatar(s.from.user_id);
+              return `
               <div class="ios-card fade-in flex items-center" style="background: rgba(48, 209, 88, 0.1); border: 1px solid rgba(48, 209, 88, 0.2); padding: 12px 16px; margin-bottom: 0;">
                   <div style="flex: 1; text-align: left;">
                        <span class="text-[11px] uppercase font-bold text-green opacity-80 tracking-wider">Receive from</span>
                   </div>
                   <div style="flex: 0 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                      ${renderAvatar({ name: s.from.name, avatar: s.from.avatar, id: s.from.user_id }, 32)}
-                      <span class="text-[11px] font-bold text-white leading-tight">${s.from.name}</span>
+                      ${renderAvatar({ name: fromName, avatar: fromAvatar, id: s.from.user_id }, 32)}
+                      <span class="text-[11px] font-bold text-white leading-tight">${fromName}</span>
                   </div>
                   <div style="flex: 1; text-align: right;">
                       <span class="text-lg font-bold text-green">£${s.amount.toFixed(2)}</span>
                   </div>
               </div>
-          `).join('')}
+          `}).join('')}
       </div>
     `;
 }
@@ -139,11 +145,17 @@ export function showSettlementModal({ settlements, currentUser = null, title = "
                          <i class="fa-solid fa-check-circle text-4xl mb-2"></i>
                          <p>Everyone is settled up!</p>
                       </div>
-                   ` : settlements.map(s => `
+                   ` : settlements.map(s => {
+                      const fromName = userStore.getName(s.from.user_id) || 'Unknown';
+                      const fromAvatar = userStore.getAvatar(s.from.user_id);
+                      const toName = userStore.getName(s.to.user_id) || 'Unknown';
+                      const toAvatar = userStore.getAvatar(s.to.user_id);
+                      
+                      return `
                       <div class="ios-card flex items-center gap-md p-3" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 16px; justify-content: space-between; margin-bottom: 0;">
                          <div class="flex flex-col items-center gap-xs" style="width: 70px;">
-                            ${renderAvatar({ name: s.from.name, avatar: s.from.avatar, id: s.from.user_id }, 42)}
-                            <span class="text-[11px] font-bold text-center leading-tight mt-1 text-white">${s.from.name.split(' ')[0]}</span>
+                            ${renderAvatar({ name: fromName, avatar: fromAvatar, id: s.from.user_id }, 42)}
+                            <span class="text-[11px] font-bold text-center leading-tight mt-1 text-white">${fromName.split(' ')[0]}</span>
                          </div>
                          
                          <div class="flex-1 flex flex-col items-center justify-center">
@@ -152,11 +164,11 @@ export function showSettlementModal({ settlements, currentUser = null, title = "
                          </div>
                          
                          <div class="flex flex-col items-center gap-xs" style="width: 70px;">
-                            ${renderAvatar({ name: s.to.name, avatar: s.to.avatar, id: s.to.user_id }, 42)}
-                            <span class="text-[11px] font-bold text-center leading-tight mt-1 text-white">${s.to.name.split(' ')[0]}</span>
+                            ${renderAvatar({ name: toName, avatar: toAvatar, id: s.to.user_id }, 42)}
+                            <span class="text-[11px] font-bold text-center leading-tight mt-1 text-white">${toName.split(' ')[0]}</span>
                          </div>
                       </div>
-                   `).join('')}
+                   `}).join('')}
             </div>
          </div>
          

@@ -11,28 +11,20 @@ const router = express.Router();
 router.get('/summary', async (req, res) => {
   const { start_date, end_date } = req.query;
 
-  // Base WHERE clause for date filtering
-  // If no dates provided, we default to ALL time (as typical for specific date range logic usually implies restrictive, but if empty we show all)
-  // However, user said "by default it's all time".
-  let dateFilter = '1=1';
+  // Build WHERE-clause fragments using proper column-qualified names
+  const filters = [];
   const args = [];
 
   if (start_date) {
-    dateFilter += ' AND (end_date >= ? OR (start_date >= ?))'; // logic: event overlaps or starts after
-    // Simpler logic: Event Start Date needed. 
-    // Let's assume we filter by Event Start Date for simplicity and consistency.
-    dateFilter = 'date(start_date) >= ?';
+    filters.push('date(ev.start_date) >= ?');
     args.push(parseFromEng(start_date));
   }
-  
   if (end_date) {
-      if (start_date) {
-          dateFilter += ' AND date(end_date) <= ?';
-      } else {
-          dateFilter = 'date(end_date) <= ?';
-      }
-      args.push(parseFromEng(end_date));
+    filters.push('date(ev.end_date) <= ?');
+    args.push(parseFromEng(end_date));
   }
+
+  const dateFilter = filters.length > 0 ? filters.join(' AND ') : '1=1';
 
   try {
     // 1. Overall Summary (Total Spent, Count)
@@ -49,7 +41,7 @@ router.get('/summary', async (req, res) => {
                   FROM expenses 
                   GROUP BY event_id
               ) sub ON ev.id = sub.event_id
-              WHERE ${dateFilter.replace(/start_date/g, 'ev.start_date').replace(/end_date/g, 'ev.end_date')}`,
+              WHERE ${dateFilter}`,
         args: args
     });
     
@@ -58,7 +50,7 @@ router.get('/summary', async (req, res) => {
         sql: `SELECT ev.id, ev.name, ev.start_date, SUM(e.amount) as total_amount 
               FROM events ev
               JOIN expenses e ON e.event_id = ev.id
-              WHERE ${dateFilter.replace(/start_date/g, 'ev.start_date').replace(/end_date/g, 'ev.end_date')}
+              WHERE ${dateFilter}
               GROUP BY ev.id
               ORDER BY ev.start_date ASC`,
         args: args
@@ -72,7 +64,7 @@ router.get('/summary', async (req, res) => {
               FROM expenses e
               JOIN events ev ON e.event_id = ev.id
               JOIN users u ON e.user_id = u.id
-              WHERE ${dateFilter.replace(/start_date/g, 'ev.start_date').replace(/end_date/g, 'ev.end_date')}
+              WHERE ${dateFilter}
               GROUP BY u.id
               ORDER BY total_paid DESC`,
         args: args

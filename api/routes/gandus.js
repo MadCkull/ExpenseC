@@ -15,8 +15,7 @@ router.get('/stats', async (req, res) => {
                 ev.name as event_name, 
                 ev.archived_at, 
                 u.id as user_id, 
-                u.name as user_name,
-                u.avatar as user_avatar
+                u.name as user_name
             FROM events ev
             JOIN users u ON ev.gandu_id = u.id
             ORDER BY ev.archived_at DESC
@@ -29,7 +28,6 @@ router.get('/stats', async (req, res) => {
             SELECT 
                 u.id as user_id, 
                 u.name as user_name, 
-                u.avatar as user_avatar,
                 COUNT(ev.id) as gandu_count,
                 MAX(ev.archived_at) as last_gandu_at
             FROM users u

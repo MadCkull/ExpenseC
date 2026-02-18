@@ -1,6 +1,6 @@
 import { api } from '../utils/api.js';
 import { initPullToRefresh } from '../utils/pullToRefresh.js';
-import { renderAvatar } from '../utils/ui.js';
+import { renderAvatar, escapeHtml } from '../utils/ui.js';
 import { createImageViewer } from './ImageViewer.js';
 import { cache, CACHE_KEYS, TTL } from '../utils/cache.js';
 import { userStore } from '../utils/userStore.js';
@@ -16,8 +16,8 @@ export function createUserDashboard({ role, onLogout }) {
   scrollWrapper.className = 'scrollable-content';
   container.appendChild(scrollWrapper);
   
-  // Try to hydrate from cache for instant render
-  const cached = cache.get(CACHE_KEYS.CURRENT_EXPENSES);
+  // Try to hydrate from cache for instant render (soft get — show stale data)
+  const cached = cache.getSoft(CACHE_KEYS.CURRENT_EXPENSES);
   let state = {
     expenses: cached?.expenses || [],
     stats: cached?.stats || { total: 0, per_head: 0, users_count: 0 },
@@ -33,7 +33,17 @@ export function createUserDashboard({ role, onLogout }) {
     if (!state.loading) render();
   });
 
+  // Proper cleanup when component is removed from DOM
+  let _destroyed = false;
+  const cleanup = () => {
+    if (_destroyed) return;
+    _destroyed = true;
+    unsubscribe();
+  };
+
   const render = () => {
+    if (_destroyed) return;
+
     if (state.loading) {
       scrollWrapper.innerHTML = `
         <header class="flex justify-between items-center mb-6 safe-area-top">
@@ -58,16 +68,30 @@ export function createUserDashboard({ role, onLogout }) {
       return;
     }
 
-    if (!state.currentUserId && role !== 'admin' && state.expenses.length > 0) {
+    if (!state.currentUserId && role !== 'admin') {
         showIdentificationModal();
-        scrollWrapper.innerHTML = '<div class="text-center p-8 text-secondary">Please select your name above.</div>';
+        scrollWrapper.innerHTML = '<div class="text-center p-8 text-secondary">Please select your name above to continue.</div>';
         return;
     }
 
     const { expenses, active } = state;
-    const currentUser = expenses.find(u => u.user_id == state.currentUserId);
-    const userName = currentUser ? currentUser.user_name : 'User';
+    
+    // Find currentUser. Priority: 1. expenses (active event) 2. userStore (global cache)
+    let currentUser = expenses.find(u => u.user_id == state.currentUserId);
+    if (!currentUser && state.currentUserId) {
+        const globalUser = userStore.getUser(state.currentUserId);
+        if (globalUser) {
+            currentUser = {
+                user_id: globalUser.id,
+                user_name: globalUser.name,
+                user_avatar: globalUser.avatar
+            };
+        }
+    }
+
+    const userName = currentUser ? escapeHtml(currentUser.user_name) : escapeHtml(localStorage.getItem('expensec_user_name') || 'User');
     const otherUsers = expenses.filter(u => u.user_id != state.currentUserId);
+    const isParticipant = expenses.some(u => u.user_id == state.currentUserId);
     
     // Header
     let html = `
@@ -78,7 +102,7 @@ export function createUserDashboard({ role, onLogout }) {
           </h1>
           ${state.active && state.event ? `
              <div class="mt-1">
-                <div class="text-sm font-semibold">${state.event.name}</div>
+                <div class="text-sm font-semibold">${escapeHtml(state.event.name)}</div>
                 <div class="text-xs text-secondary font-mono">${uiDate(state.event.start_date)} - ${uiDate(state.event.end_date)}</div>
              </div>
           ` : `<p class="text-secondary text-xs mt-1">No Active Event</p>`}
@@ -98,10 +122,12 @@ export function createUserDashboard({ role, onLogout }) {
         ${renderStatsCard()}
       </div>
 
+      ${state.active && isParticipant ? `
       <div class="mb-8 mt-2">
          <h3 class="text-xs text-secondary mb-3 uppercase tracking-widest px-1 font-bold" style="margin-bottom: 12px;">Your Spending</h3>
          ${currentUser ? renderHeroInput(currentUser) : ''}
       </div>
+      ` : ''}
 
       <div class="collaborators-section">
          <h3 class="text-xs text-secondary mb-3 uppercase tracking-widest px-1 font-bold" style="margin-bottom: 12px;">The Group</h3>
@@ -122,14 +148,7 @@ export function createUserDashboard({ role, onLogout }) {
     const allEntered = active && expenses.length > 0 && expenses.every(u => u.amount !== null);
 
     if (!active) {
-        return `
-          <div class="ios-card mb-6" style="background: rgba(255, 69, 58, 0.1); border: 1px solid rgba(255, 69, 58, 0.2);">
-            <div class="text-center py-4">
-               <div class="text-lg text-red mb-1 font-bold">No Event Active</div>
-               <div class="text-xs text-secondary">New expenses cannot be added right now.</div>
-            </div>
-          </div>
-        `;
+        return '';
     } else if (allEntered) {
         return `
           <div class="ios-card mb-6 fade-in" style="background: linear-gradient(135deg, rgba(10,132,255,0.15), rgba(0,0,0,0.4)); border: 1px solid var(--ios-blue); position: relative;">
@@ -164,8 +183,9 @@ export function createUserDashboard({ role, onLogout }) {
   };
 
   const renderHeroInput = (user) => {
-      const hasEntered = user.amount !== null;
+      const hasEntered = user.amount != null;
       const isKing = state.kingUserId && state.kingUserId == user.user_id;
+      const safeName = escapeHtml(user.user_name);
 
       return `
         <div class="ios-card ${isKing ? 'is-king' : ''}" style="padding: 20px; background: rgba(255,255,255,0.05); border: 1px solid ${hasEntered ? 'var(--ios-blue)' : (isKing ? 'rgba(255,215,0,0.4)' : 'rgba(255,255,255,0.1)')}; position: relative;">
@@ -174,7 +194,7 @@ export function createUserDashboard({ role, onLogout }) {
               <div class="flex items-center gap-md">
                  ${renderAvatar({ name: user.user_name, avatar: user.user_avatar, id: user.user_id }, 44, hasEntered ? 'hero-entered' : '')}
                  <div>
-                    <div class="text-md font-bold">${user.user_name}</div>
+                    <div class="text-md font-bold">${safeName}</div>
                     <div class="text-xs text-secondary">${hasEntered ? 'Saved' : 'Enter amount spent'}</div>
                  </div>
               </div>
@@ -183,7 +203,7 @@ export function createUserDashboard({ role, onLogout }) {
                  <input type="number" 
                         inputmode="decimal"
                         placeholder="0.00" 
-                        value="${user.amount !== null ? user.amount : ''}" 
+                        value="${hasEntered ? user.amount : ''}" 
                         class="ios-input expense-input" 
                         data-userid="${user.user_id}"
                         style="width: 120px; font-size: 24px; font-weight: bold; padding: 12px 12px 12px 28px; background: rgba(0,0,0,0.3); border-radius: 12px; text-align: right;"
@@ -196,8 +216,9 @@ export function createUserDashboard({ role, onLogout }) {
   };
 
   const renderCollaboratorRow = (user) => {
-      const hasEntered = user.amount !== null;
+      const hasEntered = user.amount != null;
       const isKing = state.kingUserId && state.kingUserId == user.user_id;
+      const safeName = escapeHtml(user.user_name);
 
       return `
         <div class="ios-card ${isKing ? 'is-king' : ''} flex justify-between items-center" style="padding: 14px 16px; margin-bottom: 0; background: rgba(255,255,255,0.02); border: ${isKing ? '1px solid rgba(255,215,0,0.2)' : 'none'}; position: relative;">
@@ -206,7 +227,7 @@ export function createUserDashboard({ role, onLogout }) {
              ${renderAvatar({ name: user.user_name, avatar: user.user_avatar, id: user.user_id }, 42)}
              <div class="flex flex-col">
                  <div class="flex items-center gap-xs">
-                    <div class="text-md font-medium text-white">${user.user_name}</div>
+                    <div class="text-md font-medium text-white">${safeName}</div>
                  </div>
              </div>
           </div>
@@ -221,17 +242,10 @@ export function createUserDashboard({ role, onLogout }) {
   };
 
   const attachListeners = () => {
-    // Avatar Lightbox Delegation
-    container.addEventListener('click', (e) => {
-        const avatar = e.target.closest('.avatar img');
-        if (avatar) {
-            e.stopPropagation();
-            createImageViewer(avatar.src);
-            return;
-        }
+    container.querySelector('#logout-btn')?.addEventListener('click', () => {
+      cleanup();
+      onLogout();
     });
-
-    container.querySelector('#logout-btn')?.addEventListener('click', onLogout);
     container.querySelector('#current-username')?.addEventListener('click', showIdentificationModal);
     container.querySelector('#history-btn')?.addEventListener('click', () => {
          window.dispatchEvent(new CustomEvent('navigate', { detail: 'history' }));
@@ -262,7 +276,8 @@ export function createUserDashboard({ role, onLogout }) {
         const val = e.target.value;
         const amount = val === '' ? null : parseFloat(val); 
         
-        if (amount !== null && !isNaN(amount)) {
+        // Allow clearing (null) or setting a valid number
+        if (amount === null || !isNaN(amount)) {
           // Optimistic update: update state immediately, re-render, then sync
           const prevExpenses = [...state.expenses];
           const prevStats = { ...state.stats };
@@ -297,20 +312,6 @@ export function createUserDashboard({ role, onLogout }) {
         }
       });
     });
-  };
-
-  const renderDashboardSuggestions = () => {
-      const { active, expenses, stats } = state;
-      const allEntered = active && expenses.length > 0 && expenses.every(u => u.amount !== null);
-      const currentUser = expenses.find(u => u.user_id == state.currentUserId);
-      
-      if (!allEntered || !currentUser) return '';
-
-      const settlements = calculateSettlements(expenses, Number(stats.per_head));
-      return `
-        <h3 class="text-xs text-secondary mb-3 uppercase tracking-widest px-1 font-bold">Suggestions</h3>
-        ${renderPersonalSummaryCard(currentUser, settlements)}
-      `;
   };
 
   const showGanduModal = async () => {
@@ -365,39 +366,39 @@ export function createUserDashboard({ role, onLogout }) {
               <div class="flex flex-col gap-sm">
                   ${stats.king ? `
                       <div class="ios-card mt-2 mb-2" style="background: linear-gradient(135deg, rgba(255,215,0,0.15), rgba(0,0,0,0.3)); border: 1px solid #FFD700; text-align: center; padding: 24px;">
-                          <div class="text-[10px] text-[#FFD700] font-bold uppercase tracking-widest mb-3" style="font-size: 21px; font-weight: 700; margin: -19px 0 23px 0;">Gandu of the Group</div>
+                          <div style="font-size: 21px; font-weight: 700; color: #FFD700; text-transform: uppercase; letter-spacing: 1px; margin: -19px 0 23px 0;">Gandu of the Group</div>
                           <div class="flex justify-center mb-3">
                               ${renderAvatar({ name: stats.king.user_name, avatar: stats.king.user_avatar, id: stats.king.user_id }, 70)}
                           </div>
-                          <div class="text-md font-bold text-white mb-1">${stats.king.user_name}</div>
+                          <div class="text-md font-bold text-white mb-1">${escapeHtml(stats.king.user_name)}</div>
                       </div>
                   ` : ''}
 
-                  <h3 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-1 mt-4 px-1">Top Gandus</h3>
+                  <h3 style="font-size: 10px; color: var(--ios-text-secondary); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; margin: 16px 0 4px 4px; opacity: 0.5;">Top Gandus</h3>
                   <div class="flex flex-col gap-2">
                        ${stats.leaderboard.length > 0 ? stats.leaderboard.slice(0, 3).map((u, idx) => `
                            <div class="ios-card flex justify-between items-center" style="padding: 12px 16px; background: rgba(255,255,255,0.03); border: none;">
                                <div class="flex items-center gap-md">
                                    <span class="text-xs text-secondary w-4">${idx + 1}</span>
                                    ${renderAvatar({ name: u.user_name, avatar: u.user_avatar, id: u.user_id }, 36)}
-                                   <span class="text-sm font-semibold">${u.user_name}</span>
+                                   <span class="text-sm font-semibold">${escapeHtml(u.user_name)}</span>
                                </div>
                                <div class="text-sm font-bold text-white">${u.gandu_count}</div>
                            </div>
                        `).join('') : '<p class="text-center text-secondary text-sm py-4">No gandus yet!</p>'}
                   </div>
 
-                  <h3 class="text-[10px] text-secondary uppercase tracking-widest font-bold mb-1 mt-6 px-1">Recent Gandus</h3>
+                  <h3 style="font-size: 10px; color: var(--ios-text-secondary); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; margin: 24px 0 4px 4px; opacity: 0.5;">Recent Gandus</h3>
                    <div class="flex flex-col gap-2">
                        ${stats.history.length > 0 ? stats.history.slice().reverse().map(h => `
                            <div class="ios-card flex justify-between items-center" style="padding: 12px 16px; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.02);">
                                <div class="flex items-center gap-md">
                                    ${renderAvatar({ name: h.user_name, avatar: h.user_avatar, id: h.user_id }, 30)}
                                    <div class="flex flex-col">
-                                       <span class="text-sm font-medium">${h.user_name}</span>
+                                       <span class="text-sm font-medium">${escapeHtml(h.user_name)}</span>
                                    </div>
                                </div>
-                               <span class="text-[10px] text-secondary italic">${uiDate(h.archived_at)}</span>
+                               <span class="text-xs text-secondary" style="font-style: italic;">${uiDate(h.archived_at)}</span>
                            </div>
                        `).join('') : '<p class="text-center text-secondary text-sm py-4">The history is empty.</p>'}
                   </div>
@@ -409,8 +410,9 @@ export function createUserDashboard({ role, onLogout }) {
       }
   };
 
-  const showIdentificationModal = () => {
+  const showIdentificationModal = async () => {
       if (document.getElementById('id-modal-root')) return;
+      
       const modal = document.createElement('div');
       modal.id = 'id-modal-root';
       modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); z-index:9999; display:flex; align-items:center; justify-content:center; padding: 20px;';
@@ -422,15 +424,11 @@ export function createUserDashboard({ role, onLogout }) {
               <p class="text-secondary text-sm">Select your name to start tracking.</p>
            </div>
            
-           <div class="user-select-scroll" style="flex: 1; overflow-y: auto; padding: 0 24px;">
+           <div class="user-select-scroll" id="id-modal-content" style="flex: 1; overflow-y: auto; padding: 0 24px;">
               <div class="flex flex-col gap-sm" style="padding-bottom: 24px;">
-                ${state.expenses.map(user => `
-                  <button class="ios-btn secondary user-select-btn" data-id="${user.user_id}" 
-                          style="text-align:left; display:flex; justify-content:space-between; align-items:center; padding: 14px 18px; border-radius: 16px; background: rgba(255,255,255,0.05); border: 1px solid transparent; transition: all 0.2s; flex-shrink: 0; margin-bottom: 2px; width: 100%;">
-                     <span class="font-bold text-white">${user.user_name}</span>
-                     ${renderAvatar({ name: user.user_name, avatar: user.user_avatar, id: user.user_id }, 32)}
-                  </button>
-                `).join('')}
+                <div class="skeleton-row skeleton"></div>
+                <div class="skeleton-row skeleton"></div>
+                <div class="skeleton-row skeleton"></div>
               </div>
            </div>
            
@@ -441,7 +439,7 @@ export function createUserDashboard({ role, onLogout }) {
       `;
       document.body.appendChild(modal);
       document.body.classList.add('modal-open');
-      
+
       const closeModal = () => {
           modal.remove();
           document.body.classList.remove('modal-open');
@@ -449,15 +447,40 @@ export function createUserDashboard({ role, onLogout }) {
       };
 
       modal.querySelector('#cancel-id-btn').addEventListener('click', closeModal);
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
-      modal.querySelectorAll('.user-select-btn').forEach(btn => {
-         btn.addEventListener('click', () => {
-            const id = btn.dataset.id;
-            localStorage.setItem('expensec_user_id', id);
-            state.currentUserId = id;
-            closeModal();
-         });
-      });
+      try {
+          const allUsers = await api.users.list();
+          // Update global store
+          await userStore.init();
+          
+          const content = modal.querySelector('#id-modal-content');
+          content.innerHTML = `
+            <div class="flex flex-col gap-sm" style="padding-bottom: 24px;">
+              ${allUsers.map(user => `
+                <button class="ios-btn secondary user-select-btn" data-id="${user.id}" data-name="${escapeHtml(user.name)}"
+                        style="text-align:left; display:flex; justify-content:space-between; align-items:center; padding: 14px 18px; border-radius: 16px; background: rgba(255,255,255,0.05); border: 1px solid transparent; transition: all 0.2s; flex-shrink: 0; margin-bottom: 2px; width: 100%;">
+                   <span class="font-bold text-white">${escapeHtml(user.name)}</span>
+                   ${renderAvatar({ name: user.name, avatar: user.avatar, id: user.id }, 32)}
+                </button>
+              `).join('')}
+            </div>
+          `;
+
+          content.querySelectorAll('.user-select-btn').forEach(btn => {
+              btn.addEventListener('click', () => {
+                  const id = btn.dataset.id;
+                  const name = btn.dataset.name;
+                  localStorage.setItem('expensec_user_id', id);
+                  localStorage.setItem('expensec_user_name', name);
+                  state.currentUserId = id;
+                  closeModal();
+              });
+          });
+      } catch (err) {
+          console.error('Failed to load user list', err);
+          modal.querySelector('#id-modal-content').innerHTML = '<div class="text-center p-8 text-red">Failed to load users</div>';
+      }
   };
 
   const recalcStats = () => {
@@ -469,6 +492,8 @@ export function createUserDashboard({ role, onLogout }) {
   };
 
   const loadData = async (silent = false) => {
+    if (_destroyed) return;
+
     // If not silent and no cached data, show loading
     if (!silent && state.expenses.length === 0) {
       state.loading = true;
@@ -480,8 +505,11 @@ export function createUserDashboard({ role, onLogout }) {
       render();
     }
     try {
-        const data = await api.expenses.current();
-        const ganduStats = await api.gandus.stats();
+        // Parallel fetch — expenses and gandus at the same time
+        const [data, ganduStats] = await Promise.all([
+          api.expenses.current(),
+          api.gandus.stats()
+        ]);
         const kingUserId = ganduStats.king ? ganduStats.king.user_id : null;
 
         // Cache the fresh data
@@ -492,17 +520,26 @@ export function createUserDashboard({ role, onLogout }) {
           active: data.active,
           kingUserId: kingUserId
         });
-        // Check if data actually changed before re-rendering
-        const changed = JSON.stringify(data.expenses) !== JSON.stringify(state.expenses)
-                     || JSON.stringify(data.stats) !== JSON.stringify(state.stats)
-                     || data.active !== state.active
-                     || kingUserId !== state.kingUserId;
+
+        // Simple field comparison instead of JSON.stringify
+        const changed = data.active !== state.active
+                     || kingUserId !== state.kingUserId
+                     || data.expenses.length !== state.expenses.length
+                     || data.expenses.some((e, i) => e.amount !== state.expenses[i]?.amount || e.user_id !== state.expenses[i]?.user_id);
+
         state.expenses = data.expenses;
         state.stats = data.stats || { total: 0, users_count: 0, per_head: 0 };
         state.event = data.event;
         state.active = data.active;
         state.kingUserId = kingUserId;
         state.loading = false;
+        
+        // Cache current user name if found
+        const currentUserInEvent = data.expenses.find(u => u.user_id == state.currentUserId);
+        if (currentUserInEvent) {
+            localStorage.setItem('expensec_user_name', currentUserInEvent.user_name);
+        }
+        
         if (changed || !silent) {
           render();
         }
@@ -529,5 +566,8 @@ export function createUserDashboard({ role, onLogout }) {
   }
   // PullToRefresh on scrollWrapper, not container
   initPullToRefresh(scrollWrapper, loadData);
+
+  // Expose cleanup for router to call
+  container._cleanup = cleanup;
   return container;
 }

@@ -1,8 +1,10 @@
 import { api } from '../utils/api.js';
 import { initPullToRefresh } from '../utils/pullToRefresh.js';
-import { renderAvatar } from '../utils/ui.js';
+import { renderAvatar, escapeHtml } from '../utils/ui.js';
 import { userStore } from '../utils/userStore.js';
 import Chart from 'chart.js/auto';
+import flatpickr from 'flatpickr';
+import 'flatpickr/dist/flatpickr.min.css';
 import { formatToEng, uiDate, parseFromEng } from '../utils/dateUtils.js';
 
 export function createAnalyticsDashboard({ onBack, initialDateRange }) {
@@ -18,6 +20,18 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
     data: null,
     // Strict Date Range: Default to All Time if not provided, but UI will show "All Time"
     dateRange: initialDateRange || { start: '', end: '' }
+  };
+
+  let _destroyed = false;
+  let _trendChart = null;
+  let _userChart = null;
+
+  const cleanup = () => {
+    if (_destroyed) return;
+    _destroyed = true;
+    unsubscribe();
+    if (_trendChart) { _trendChart.destroy(); _trendChart = null; }
+    if (_userChart) { _userChart.destroy(); _userChart = null; }
   };
 
   const unsubscribe = userStore.subscribe(() => {
@@ -356,5 +370,6 @@ export function createAnalyticsDashboard({ onBack, initialDateRange }) {
 
   loadData();
   initPullToRefresh(scrollWrapper, loadData);
+  container._cleanup = cleanup;
   return container;
 }

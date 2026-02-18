@@ -660,3 +660,52 @@ input[type="number"] {
   line-height: 1;
 }
 
+
+/* Missing Tailwind-like utility classes used in components */
+.text-\[8px\] { font-size: 8px; }
+.text-\[9px\] { font-size: 9px; }
+.text-\[10px\] { font-size: 10px; }
+.text-\[11px\] { font-size: 11px; }
+.text-\[14px\] { font-size: 14px; }
+.text-\[18px\] { font-size: 18px; }
+.text-\[\#FFD700\] { color: #FFD700; }
+
+.rounded-2xl { border-radius: 16px; }
+.pr-1 { padding-right: 4px; }
+.py-8 { padding-top: 32px; padding-bottom: 32px; }
+.mb-0\.5 { margin-bottom: 2px; }
+.mt-1\.5 { margin-top: 6px; }
+.mb-1\.5 { margin-bottom: 6px; }
+.pt-0\.5 { padding-top: 2px; }
+.gap-0\.5 { gap: 2px; }
+.w-full { width: 100%; }
+.w-4 { width: 16px; }
+.w-24 { width: 96px; }
+.w-16 { width: 64px; }
+.w-32 { width: 128px; }
+.w-1\/2 { width: 50%; }
+.font-bold { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+.font-medium { font-weight: 500; }
+.font-mono { font-family: monospace; }
+.cursor-pointer { cursor: pointer; }
+.relative { position: relative; }
+.uppercase { text-transform: uppercase; }
+.tracking-widest { letter-spacing: 0.1em; }
+.tracking-wider { letter-spacing: 0.05em; }
+.tracking-tight { letter-spacing: -0.025em; }
+.opacity-20 { opacity: 0.2; }
+.opacity-30 { opacity: 0.3; }
+.opacity-40 { opacity: 0.4; }
+.opacity-50 { opacity: 0.5; }
+.opacity-60 { opacity: 0.6; }
+.opacity-80 { opacity: 0.8; }
+.hidden { display: none; }
+.overflow-y-auto { overflow-y: auto; }
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

@@ -3,6 +3,7 @@ import { initPullToRefresh } from '../utils/pullToRefresh.js';
 import { cache, CACHE_KEYS, TTL } from '../utils/cache.js';
 import { uiDate } from '../utils/dateUtils.js';
 import { showSettlementModal } from '../utils/settlements.js';
+import { userStore } from '../utils/userStore.js';
 
 export function createEventHistory({ onBack, onSelectEvent }) {
   const container = document.createElement('div');
@@ -13,7 +14,7 @@ export function createEventHistory({ onBack, onSelectEvent }) {
   container.appendChild(scrollWrapper);
   
   // Hydrate from cache for instant render
-  const cached = cache.get(CACHE_KEYS.EVENT_HISTORY);
+  const cached = cache.getSoft(CACHE_KEYS.EVENT_HISTORY);
   let state = {
     loading: !cached,
     history: cached || []
@@ -80,13 +81,16 @@ export function createEventHistory({ onBack, onSelectEvent }) {
     container.querySelector('#back-btn').addEventListener('click', onBack);
     
     container.querySelectorAll('.event-card').forEach(card => {
-        card.addEventListener('click', (e) => {
+        card.addEventListener('click', async (e) => {
              // If analytics icon clicked, don't trigger settlement
              if (e.target.closest('.analytics-icon-btn')) return;
 
              const id = parseInt(card.dataset.id);
              const ev = state.history.find(h => h.id === id);
              if (ev && ev.settlements_json) {
+                 // Ensure userStore is ready (including deleted users for historical consistency)
+                 await userStore.init();
+                 
                  let settlements = ev.settlements_json;
                  if (typeof settlements === 'string') {
                      try { settlements = JSON.parse(settlements); } catch(err) { console.error(err); }
@@ -130,8 +134,16 @@ export function createEventHistory({ onBack, onSelectEvent }) {
      }
      try {
          const data = await api.events.history();
-         cache.set(CACHE_KEYS.EVENT_HISTORY, data);
-         const changed = JSON.stringify(data) !== JSON.stringify(state.history);
+         
+         // Strip settlement blobs before caching to prevent localStorage overflow
+         const lightHistory = data.map(h => {
+             const { settlements_json, ...rest } = h;
+             return rest;
+         });
+         
+         const oldData = cache.get(CACHE_KEYS.EVENT_HISTORY);
+         cache.set(CACHE_KEYS.EVENT_HISTORY, lightHistory);
+         const changed = JSON.stringify(lightHistory) !== JSON.stringify(oldData);
          state.history = data;
          state.loading = false;
          if (changed || !silent) render();

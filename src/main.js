@@ -3,7 +3,9 @@ import { createUserDashboard } from './components/UserDashboard.js';
 import { createAdminDashboard } from './components/AdminDashboard.js';
 import { createAnalyticsDashboard } from './components/AnalyticsDashboard.js';
 import { createEventHistory } from './components/EventHistory.js';
+import { createImageViewer } from './components/ImageViewer.js';
 import { userStore } from './utils/userStore.js';
+import { api } from './utils/api.js';
 import { injectSpeedInsights } from '@vercel/speed-insights';
 import './styles/main.css';
 
@@ -12,8 +14,32 @@ injectSpeedInsights();
 
 const app = document.querySelector('#app');
 
+// Global Avatar Viewer
+window.openFullAvatar = async (userId) => {
+    if (!userId) return;
+    
+    // Check if we have a thumb to show immediately?
+    // Maybe show spinner?
+    // For now, just fetch.
+    try {
+        const res = await api.generic(`/users/${userId}/avatar`);
+        if (res && res.avatar) {
+             createImageViewer(res.avatar);
+        } else {
+             // If no avatar, maybe show name? 
+             // Or just do nothing.
+             console.log("No full avatar found.");
+        }
+    } catch (e) {
+        console.error("Failed to load avatar", e);
+    }
+};
+
 // Router Logic
 function navigateTo(view, params = {}) {
+  // Clean up previous component if it has a cleanup method
+  const prevComponent = app.firstElementChild;
+  if (prevComponent?._cleanup) prevComponent._cleanup();
   app.innerHTML = '';
   
   const LOCK_TIMEOUT = 5 * 60 * 1000; // 5 minutes
@@ -111,8 +137,6 @@ window.addEventListener('beforeinstallprompt', (e) => {
   console.log('PWA Install Prompt available');
   // You can show a button here if needed
 });
-
-import { api } from './utils/api.js';
 
 // Init Store
 userStore.init();

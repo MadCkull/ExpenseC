@@ -13,16 +13,46 @@ export const CACHE_KEYS = {
 
 // TTLs in milliseconds
 export const TTL = {
-  SHORT: 30 * 1000,       // 30 seconds — for active expense data
-  MEDIUM: 5 * 60 * 1000,  // 5 minutes — for event history
+  SHORT: 1 * 60 * 1000,   // 1 min — for active expense data
+  MEDIUM: 10 * 60 * 1000, // 10 mins — for event history
   LONG: 60 * 60 * 1000,   // 1 hour — for user profiles/avatars
+};
+
+// Max sizes per key (in characters) to prevent localStorage overflow
+const MAX_SIZE = {
+  [CACHE_KEYS.CURRENT_EXPENSES]: 100_000,   // ~100KB
+  [CACHE_KEYS.EVENT_HISTORY]: 200_000,       // ~200KB
+  [CACHE_KEYS.USERS_LIST]: 50_000,           // ~50KB
 };
 
 export const cache = {
   /**
-   * Get cached data. Returns null if not found.
+   * Get cached data. Returns null if expired or not found.
+   * @param {string} key
+   * @param {number} ttlMs - TTL in milliseconds. If provided, returns null for stale data.
    */
-  get(key) {
+  get(key, ttlMs) {
+    try {
+      const raw = localStorage.getItem(PREFIX + key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+
+      // Enforce TTL if provided
+      if (ttlMs && (Date.now() - parsed.ts) > ttlMs) {
+        return null;
+      }
+
+      return parsed.data;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Get data regardless of age (for "show stale, refresh in background" pattern).
+   * Returns null only if key doesn't exist.
+   */
+  getSoft(key) {
     try {
       const raw = localStorage.getItem(PREFIX + key);
       if (!raw) return null;
@@ -38,19 +68,22 @@ export const cache = {
    */
   set(key, data) {
     try {
-      localStorage.setItem(PREFIX + key, JSON.stringify({
-        data,
-        ts: Date.now()
-      }));
+      const payload = JSON.stringify({ data, ts: Date.now() });
+
+      // Check size limit before storing
+      const limit = MAX_SIZE[key];
+      if (limit && payload.length > limit) {
+        console.warn(`Cache: Skipping write for '${key}' — payload (${(payload.length / 1024).toFixed(0)}KB) exceeds limit`);
+        return;
+      }
+
+      localStorage.setItem(PREFIX + key, payload);
     } catch (e) {
       if (e.name === 'QuotaExceededError') {
         console.warn('Cache quota exceeded, clearing old entries...');
         this.clear(); // Clear everything and try once more
         try {
-          localStorage.setItem(PREFIX + key, JSON.stringify({
-            data,
-            ts: Date.now()
-          }));
+          localStorage.setItem(PREFIX + key, JSON.stringify({ data, ts: Date.now() }));
         } catch (e2) {
           console.error('Cache write still failing after clear:', e2);
         }

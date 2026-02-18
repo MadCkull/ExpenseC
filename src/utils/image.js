@@ -12,7 +12,8 @@
  * @param {number} options.maxHeight - Max height in pixels (default: 512).
  * @param {number} options.quality - JPEG quality 0-1 (default: 0.7).
  */
-export function compressImage(source, { maxWidth = 512, maxHeight = 512, quality = 0.7 } = {}) {
+// Main compression
+function compressImage(source, { maxWidth = 512, maxHeight = 512, quality = 0.7 } = {}) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -56,3 +57,10 @@ export function compressImage(source, { maxWidth = 512, maxHeight = 512, quality
     }
   });
 }
+
+// Shortcut for thumbnails
+export function compressImageThumb(source) {
+  return compressImage(source, { maxWidth: 64, maxHeight: 64, quality: 0.6 });
+}
+
+export { compressImage };

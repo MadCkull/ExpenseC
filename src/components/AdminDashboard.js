@@ -1,6 +1,6 @@
 import { api } from '../utils/api.js';
 import { initPullToRefresh } from '../utils/pullToRefresh.js';
-import { renderAvatar } from '../utils/ui.js';
+import { renderAvatar, escapeHtml } from '../utils/ui.js';
 import { createImageViewer } from './ImageViewer.js';
 import { cache, CACHE_KEYS, TTL } from '../utils/cache.js';
 import { userStore } from '../utils/userStore.js';
@@ -17,15 +17,22 @@ export function createAdminDashboard({ onBack }) {
   scrollWrapper.className = 'scrollable-content';
   container.appendChild(scrollWrapper);
   
-  // Hydrate from cache
-  const cachedUsers = cache.get(CACHE_KEYS.USERS_LIST);
-  const cachedHistory = cache.get(CACHE_KEYS.EVENT_HISTORY);
+  // Hydrate from cache (soft get — show stale data while refreshing)
+  const cachedUsers = cache.getSoft(CACHE_KEYS.USERS_LIST);
+  const cachedHistory = cache.getSoft(CACHE_KEYS.EVENT_HISTORY);
   let state = {
     users: cachedUsers || [],
     history: cachedHistory || [],
     loading: !(cachedUsers || cachedHistory),
     view: 'events',
     selectedParticipants: []
+  };
+
+  let _destroyed = false;
+  const cleanup = () => {
+    if (_destroyed) return;
+    _destroyed = true;
+    unsubscribe();
   };
 
   // Subscribe to userStore changes for reactive image loading
@@ -37,6 +44,7 @@ export function createAdminDashboard({ onBack }) {
   });
 
   const render = () => {
+    if (_destroyed) return;
     // Header
     let html = `
       <header class="flex justify-between items-center mb-6 safe-area-top">
@@ -98,7 +106,7 @@ export function createAdminDashboard({ onBack }) {
           <div class="ios-card flex justify-between items-center user-edit-row" data-id="${user.id}" style="padding: 12px 16px; cursor:pointer;">
              <div class="flex items-center gap-md">
                 ${renderAvatar(user, 40)}
-                <span class="text-md font-bold">${user.name}</span>
+                <span class="text-md font-bold">${escapeHtml(user.name)}</span>
              </div>
              <div class="flex items-center gap-sm">
                 <i class="fa-solid fa-chevron-right text-secondary opacity-30"></i>
@@ -123,8 +131,8 @@ export function createAdminDashboard({ onBack }) {
            <h3 class="text-md font-semibold mb-2 text-blue text-left" style="margin: -10px 0px 10px 0;">${activeEvent ? 'Current Active Event' : 'Create New Event'}</h3>
            ${activeEvent ? `
               <div class="mb-4" style="margin-bottom: 20px;">
-                 <div class="text-xl font-bold mb-1 text-center">${activeEvent.name}</div>
-                 <div class="text-sm text-secondary text-center">Date: ${activeEvent.start_date} - ${activeEvent.end_date}</div>
+                 <div class="text-xl font-bold mb-1 text-center">${escapeHtml(activeEvent.name)}</div>
+                 <div class="text-sm text-secondary text-center">Date: ${uiDate(activeEvent.start_date)} - ${uiDate(activeEvent.end_date)}</div>
               </div>
               <button class="ios-btn secondary text-red" id="archive-event-btn">End Event</button>
            ` : `
@@ -284,8 +292,27 @@ export function createAdminDashboard({ onBack }) {
                modalRoot.querySelectorAll('.participant-check').forEach(chk => {
                    chk.addEventListener('change', (e) => {
                        const id = parseInt(e.target.value);
-                       if (e.target.checked) state.selectedParticipants.push(id);
-                       else state.selectedParticipants = state.selectedParticipants.filter(p => p !== id);
+                       const label = e.target.closest('label');
+                       const indicator = label.querySelector('.selection-indicator');
+                       const nameSpan = label.querySelector('span.font-bold');
+                       
+                       if (e.target.checked) {
+                           if (!state.selectedParticipants.includes(id)) {
+                               state.selectedParticipants.push(id);
+                           }
+                           label.classList.add('selected');
+                           label.style.borderColor = 'var(--ios-blue)';
+                           nameSpan.classList.remove('text-secondary');
+                           nameSpan.classList.add('text-white');
+                           indicator.innerHTML = '<i class="fa-solid fa-circle-check text-blue text-lg"></i>';
+                       } else {
+                           state.selectedParticipants = state.selectedParticipants.filter(p => p !== id);
+                           label.classList.remove('selected');
+                           label.style.borderColor = 'transparent';
+                           nameSpan.classList.remove('text-white');
+                           nameSpan.classList.add('text-secondary');
+                           indicator.innerHTML = '<i class="fa-regular fa-circle text-secondary opacity-20 text-lg"></i>';
+                       }
                        render(); // To update the count on the button in the background
                    });
                });
@@ -356,29 +383,40 @@ export function createAdminDashboard({ onBack }) {
   const loadUsers = async () => {
     try {
       const users = await api.users.list();
+      const oldRaw = cache.get(CACHE_KEYS.USERS_LIST);
       
       // CRITICAL: Strip avatars before storing in localStorage cache to avoid QuotaExceededError
       const metadataOnly = users.map(u => ({ id: u.id, name: u.name }));
       cache.set(CACHE_KEYS.USERS_LIST, metadataOnly);
       
+      const changed = JSON.stringify(metadataOnly) !== JSON.stringify(oldRaw);
       state.users = users;
       if (state.selectedParticipants.length === 0) {
           state.selectedParticipants = state.users.map(u => u.id);
       }
       
-      // Update global userStore with the full data (including avatars)
-      // This uses IndexedDB which can handle large blobs.
-      userStore.populateFromExpenses(users); 
-      render();
+      // Update global userStore with the fresh users list
+      await userStore.init(); 
+      if (changed) render();
     } catch(e) { console.error(e); }
   };
 
   const loadHistory = async () => {
     try {
       const history = await api.events.history();
-      cache.set(CACHE_KEYS.EVENT_HISTORY, history);
+      // Strip settlement blobs before caching to prevent localStorage overflow
+      const lightHistory = history.map(h => {
+        const { settlements, settlements_json, ...rest } = h;
+        return rest;
+      });
+      const oldLen = state.history.length;
+      cache.set(CACHE_KEYS.EVENT_HISTORY, lightHistory);
       state.history = history;
-      render();
+      // Simple change detection: count or first item changed
+      const changed = history.length !== oldLen 
+        || (history[0]?.id !== state.history[0]?.id)
+        || (history[0]?.is_active !== state.history[0]?.is_active);
+      render(); // Always render after history load to keep UI fresh
     } catch(e) { console.error(e); }
   };
 
@@ -535,7 +573,8 @@ export function createAdminDashboard({ onBack }) {
   init();
   initPullToRefresh(scrollWrapper, () => Promise.all([loadUsers(), loadHistory()]));
   
-  container.addEventListener('remove', () => unsubscribe());
+  // Expose cleanup for router to call
+  container._cleanup = cleanup;
   
   return container;
 }
