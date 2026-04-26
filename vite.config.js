@@ -13,7 +13,7 @@ export default defineConfig({
         start_url: "/?source=pwa",
         scope: "/",
         display: "standalone",
-        orientation: "any",
+        orientation: "portrait",
         background_color: "#000000",
         theme_color: "#000000",
         icons: [

@@ -264,9 +264,13 @@ export function createAdminDashboard({ onBack }) {
              if (dates.length !== 2) return alert("Select Date Range");
              if (state.selectedParticipants.length === 0) return alert("Select Participants");
              
+             // Use local date parts to avoid UTC timezone shift (toISOString() converts to UTC
+             // which can shift the date back by 1 day for users in UTC+ timezones like BST).
              const formatDate = (date) => {
-                 const d = new Date(date);
-                 return d.toISOString().split('T')[0];
+                 const y = date.getFullYear();
+                 const m = String(date.getMonth() + 1).padStart(2, '0');
+                 const d = String(date.getDate()).padStart(2, '0');
+                 return `${y}-${m}-${d}`;
              };
 
              try {
