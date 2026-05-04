@@ -45,6 +45,9 @@ export const api = {
     delete: (id) => fetchJson(`/events/${id}`, { method: 'DELETE' }),
     analytics: (start, end) => fetchJson(`/events/analytics?start_date=${start || ''}&end_date=${end || ''}&t=${Date.now()}`),
   },
+  explicitDebts: {
+    update: (creditor_id, debtor_id, amount) => fetchJson('/explicit-debts/update', { method: 'POST', body: JSON.stringify({ creditor_id, debtor_id, amount }) }),
+  },
   analytics: {
     summary: (start, end) => fetchJson(`/analytics/summary?start_date=${start || ''}&end_date=${end || ''}&t=${Date.now()}`),
   },

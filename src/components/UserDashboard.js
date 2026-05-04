@@ -20,6 +20,7 @@ export function createUserDashboard({ role, onLogout }) {
   const cached = cache.getSoft(CACHE_KEYS.CURRENT_EXPENSES);
   let state = {
     expenses: cached?.expenses || [],
+    explicitDebts: cached?.explicitDebts || [],
     stats: cached?.stats || { total: 0, per_head: 0, users_count: 0 },
     loading: !cached,  // Only show loading spinner if no cache exists
     eventName: '',
@@ -132,7 +133,7 @@ export function createUserDashboard({ role, onLogout }) {
       <div class="collaborators-section">
          <h3 class="text-xs text-secondary mb-3 uppercase tracking-widest px-1 font-bold" style="margin-bottom: 12px;">The Group</h3>
          <div class="flex flex-col gap-sm">
-            ${otherUsers.length > 0 ? otherUsers.map(u => renderCollaboratorRow(u)).join('') : '<div class="text-center p-4 text-secondary text-sm">No other participants</div>'}
+            ${otherUsers.length > 0 ? otherUsers.map(u => renderCollaboratorRow(u, state.currentUserId)).join('') : '<div class="text-center p-4 text-secondary text-sm">No other participants</div>'}
          </div>
       </div>
       
@@ -187,6 +188,9 @@ export function createUserDashboard({ role, onLogout }) {
       const isKing = state.kingUserId && state.kingUserId == user.user_id;
       const safeName = escapeHtml(user.user_name);
 
+      // Find debts where someone owes THIS user (current user is creditor)
+      const debtsToMe = state.explicitDebts.filter(d => d.creditor_id == user.user_id);
+
       return `
         <div class="ios-card ${isKing ? 'is-king' : ''}" style="padding: 20px; background: rgba(255,255,255,0.05); border: 1px solid ${hasEntered ? 'var(--ios-blue)' : (isKing ? 'rgba(255,215,0,0.4)' : 'rgba(255,255,255,0.1)')}; position: relative;">
            ${isKing ? `<span class="gandu-badge"><i class="fa-solid fa-crown king-crown"></i> Gandu of the Group</span>` : ''}
@@ -211,32 +215,53 @@ export function createUserDashboard({ role, onLogout }) {
                  >
               </div>
            </div>
+           ${debtsToMe.length > 0 ? `
+           <div class="flex flex-wrap gap-xs" style="margin-top: 10px;">
+              ${debtsToMe.map(d => {
+                  const debtorName = userStore.getName(d.debtor_id) || 'Someone';
+                  return `<span class="explicit-debt-pill debt-info-pill" data-creditor="${d.creditor_id}" data-debtor="${d.debtor_id}" data-amount="${d.amount}" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; background: rgba(48, 209, 88, 0.12); border: 1px solid rgba(48, 209, 88, 0.25); color: #30D158; cursor: pointer; transition: all 0.2s;"><i class="fa-solid fa-arrow-down" style="font-size: 8px;"></i> £${d.amount.toFixed(2)} from ${escapeHtml(debtorName)}</span>`;
+              }).join('')}
+           </div>
+           ` : ''}
         </div>
       `;
   };
 
-  const renderCollaboratorRow = (user) => {
+  const renderCollaboratorRow = (user, currentUserId) => {
       const hasEntered = user.amount != null;
       const isKing = state.kingUserId && state.kingUserId == user.user_id;
       const safeName = escapeHtml(user.user_name);
 
+      // Debt where I am creditor for this user (this user owes me)
+      const debtTheyOweMe = state.explicitDebts.find(d => d.creditor_id == currentUserId && d.debtor_id == user.user_id);
+      // Debt where I am debtor for this user (I owe this user)
+      const debtIOwe = state.explicitDebts.find(d => d.creditor_id == user.user_id && d.debtor_id == currentUserId);
+
       return `
-        <div class="ios-card ${isKing ? 'is-king' : ''} flex justify-between items-center" style="padding: 14px 16px; margin-bottom: 0; background: rgba(255,255,255,0.02); border: ${isKing ? '1px solid rgba(255,215,0,0.2)' : 'none'}; position: relative;">
+        <div class="ios-card collab-row ${isKing ? 'is-king' : ''}" data-userid="${user.user_id}" style="padding: 14px 16px; margin-bottom: 0; background: rgba(255,255,255,0.02); border: ${isKing ? '1px solid rgba(255,215,0,0.2)' : 'none'}; position: relative; cursor: ${state.active ? 'pointer' : 'default'}; transition: background 0.2s;">
           ${isKing ? `<span class="gandu-badge"><i class="fa-solid fa-crown king-crown"></i> Gandu of the Group</span>` : ''}
-          <div class="flex items-center gap-md">
-             ${renderAvatar({ name: user.user_name, avatar: user.user_avatar, id: user.user_id }, 42)}
-             <div class="flex flex-col">
-                 <div class="flex items-center gap-xs">
-                    <div class="text-md font-medium text-white">${safeName}</div>
-                 </div>
-             </div>
+          <div class="flex justify-between items-center">
+            <div class="flex items-center gap-md">
+               ${renderAvatar({ name: user.user_name, avatar: user.user_avatar, id: user.user_id }, 42)}
+               <div class="flex flex-col">
+                   <div class="flex items-center gap-xs">
+                      <div class="text-md font-medium text-white">${safeName}</div>
+                   </div>
+               </div>
+            </div>
+            <div class="flex flex-col items-end">
+               ${hasEntered 
+                  ? `<div class="text-md font-bold text-white">£${(user.amount || 0).toFixed(2)}</div>` 
+                  : `<div class="text-xs text-secondary uppercase font-bold tracking-tight">Waiting...</div>`
+               }
+            </div>
           </div>
-          <div class="flex flex-col items-end">
-             ${hasEntered 
-                ? `<div class="text-md font-bold text-white">£${(user.amount || 0).toFixed(2)}</div>` 
-                : `<div class="text-xs text-secondary uppercase font-bold tracking-tight">Waiting...</div>`
-             }
+          ${debtTheyOweMe || debtIOwe ? `
+          <div class="flex flex-wrap gap-xs" style="margin-top: 8px;">
+             ${debtTheyOweMe ? `<span class="explicit-debt-pill debt-info-pill" data-creditor="${debtTheyOweMe.creditor_id}" data-debtor="${debtTheyOweMe.debtor_id}" data-amount="${debtTheyOweMe.amount}" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; background: rgba(48, 209, 88, 0.12); border: 1px solid rgba(48, 209, 88, 0.25); color: #30D158; cursor: pointer; transition: all 0.2s;"><i class="fa-solid fa-arrow-down" style="font-size: 8px;"></i> Owes you £${debtTheyOweMe.amount.toFixed(2)}</span>` : ''}
+             ${debtIOwe ? `<span class="explicit-debt-pill debt-info-pill" data-creditor="${debtIOwe.creditor_id}" data-debtor="${debtIOwe.debtor_id}" data-amount="${debtIOwe.amount}" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; background: rgba(255, 69, 58, 0.12); border: 1px solid rgba(255, 69, 58, 0.25); color: #FF453A; cursor: pointer; transition: all 0.2s;"><i class="fa-solid fa-arrow-up" style="font-size: 8px;"></i> You owe £${debtIOwe.amount.toFixed(2)}</span>` : ''}
           </div>
+          ` : ''}
         </div>
       `;
   };
@@ -310,11 +335,35 @@ export function createUserDashboard({ role, onLogout }) {
     container.querySelector('#gandu-btn')?.addEventListener('click', showGanduModal);
 
     container.querySelector('#settlement-guide-btn')?.addEventListener('click', () => {
-        const { expenses, stats } = state;
-        const settlements = calculateSettlements(expenses, Number(stats.per_head));
+        const { expenses, stats, explicitDebts } = state;
+        const settlements = calculateSettlements(expenses, Number(stats.per_head), explicitDebts);
         showSettlementModal({ 
             settlements, 
             currentUser: state.expenses.find(u => u.user_id == state.currentUserId) 
+        });
+    });
+
+    // Make collaborator rows clickable to add explicit debts
+    if (state.active) {
+        container.querySelectorAll('.collab-row').forEach(row => {
+            row.addEventListener('click', (e) => {
+                // Don't trigger if clicking on the avatar (which opens full avatar) or pills
+                if (e.target.closest('.avatar') || e.target.closest('.debt-info-pill')) return;
+                const targetUserId = row.dataset.userid;
+                const targetUser = state.expenses.find(u => u.user_id == targetUserId);
+                if (targetUser) showExplicitDebtModal(targetUser);
+            });
+        });
+    }
+
+    // Debt info pill click handlers
+    container.querySelectorAll('.debt-info-pill').forEach(pill => {
+        pill.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const creditorId = pill.dataset.creditor;
+            const debtorId = pill.dataset.debtor;
+            const amount = parseFloat(pill.dataset.amount);
+            showDebtInfoModal(creditorId, debtorId, amount);
         });
     });
     
@@ -349,6 +398,7 @@ export function createUserDashboard({ role, onLogout }) {
             // Update cache with new state
             cache.set(CACHE_KEYS.CURRENT_EXPENSES, {
               expenses: state.expenses,
+              explicitDebts: state.explicitDebts,
               stats: state.stats,
               event: state.event,
               active: state.active
@@ -537,6 +587,131 @@ export function createUserDashboard({ role, onLogout }) {
       }
   };
 
+  const showExplicitDebtModal = (targetUser) => {
+      if (document.getElementById('debt-modal-root')) return;
+
+      const safeName = escapeHtml(targetUser.user_name);
+      const currentUserId = state.currentUserId;
+      const existingDebt = state.explicitDebts.find(d => d.creditor_id == currentUserId && d.debtor_id == targetUser.user_id);
+
+      const modal = document.createElement('div');
+      modal.id = 'debt-modal-root';
+      modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); z-index:9999; display:flex; align-items:center; justify-content:center; padding: 20px;';
+
+      modal.innerHTML = `
+        <div class="ios-card w-full fade-in" style="width: 100%; max-width: 380px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); padding: 0; background: var(--ios-card-bg); position: relative;">
+           
+           <button id="close-debt-modal-btn" style="position: absolute; top: 16px; right: 16px; width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.1); border: none; color: white; display: flex; align-items: center; justify-content: center; z-index: 100; cursor: pointer;">
+              <i class="fa-solid fa-xmark" style="font-size: 14px;"></i>
+           </button>
+
+           <div style="padding: 32px 24px 16px; text-align: center;">
+              <div class="flex justify-center mb-3">
+                 ${renderAvatar({ name: targetUser.user_name, avatar: targetUser.user_avatar, id: targetUser.user_id }, 56)}
+              </div>
+              <h2 class="text-lg font-bold text-white" style="margin-bottom: 4px;">Extra Debt</h2>
+              <p class="text-xs text-secondary" style="line-height: 1.5;">Does <strong style="color: white;">${safeName}</strong> owe you any extra money<br>outside of the group split?</p>
+           </div>
+           
+           <div style="padding: 0 24px 32px;">
+              <div style="position: relative;">
+                 <span style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--ios-text-secondary); font-weight: bold; font-size: 18px;">£</span>
+                 <input type="number" 
+                        id="debt-amount-input"
+                        inputmode="decimal"
+                        placeholder="0.00" 
+                        value="${existingDebt ? existingDebt.amount : ''}" 
+                        class="ios-input" 
+                        style="width: 100%; font-size: 28px; font-weight: bold; padding: 16px 16px 16px 36px; background: rgba(0,0,0,0.3); border-radius: 14px; text-align: right; border: 1px solid rgba(255,255,255,0.1);"
+                        autofocus
+                 >
+              </div>
+              <div id="debt-status" class="text-[10px] text-center mt-2 opacity-50 font-bold uppercase tracking-widest" style="height: 12px;">
+                 ${existingDebt ? 'Saved' : ''}
+              </div>
+           </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      document.body.classList.add('modal-open');
+
+      const input = modal.querySelector('#debt-amount-input');
+      const status = modal.querySelector('#debt-status');
+
+      setTimeout(() => input?.focus(), 100);
+
+      const closeModal = () => {
+          modal.remove();
+          document.body.classList.remove('modal-open');
+      };
+
+      modal.querySelector('#close-debt-modal-btn').addEventListener('click', closeModal);
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+      input.addEventListener('change', async () => {
+          const val = input.value.trim();
+          const amount = val === '' ? null : parseFloat(val);
+          
+          status.textContent = 'Saving...';
+          status.style.color = 'var(--ios-blue)';
+
+          try {
+              await api.explicitDebts.update(currentUserId, targetUser.user_id, amount);
+              status.textContent = 'Saved';
+              status.style.color = 'var(--ios-green)';
+              // Refresh background data
+              loadData(true);
+          } catch (err) {
+              console.error('Failed to auto-save debt:', err);
+              status.textContent = 'Failed to Save';
+              status.style.color = 'var(--ios-red)';
+          }
+      });
+  };
+
+  const showDebtInfoModal = (creditorId, debtorId, amount) => {
+      if (document.getElementById('debt-info-modal-root')) return;
+
+      const creditorName = userStore.getName(creditorId) || 'Unknown';
+      const debtorName = userStore.getName(debtorId) || 'Unknown';
+      const isCurrentUserCreditor = creditorId == state.currentUserId;
+
+      const modal = document.createElement('div');
+      modal.id = 'debt-info-modal-root';
+      modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); backdrop-filter:blur(15px); -webkit-backdrop-filter:blur(15px); z-index:9999; display:flex; align-items:center; justify-content:center; padding: 20px;';
+
+      modal.innerHTML = `
+        <div class="ios-card w-full fade-in" style="width: 100%; max-width: 340px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); padding: 0; background: var(--ios-card-bg);">
+           <div style="padding: 28px 24px 20px; text-align: center;">
+              <div style="width: 48px; height: 48px; border-radius: 50%; background: ${isCurrentUserCreditor ? 'rgba(48, 209, 88, 0.15)' : 'rgba(255, 69, 58, 0.15)'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                 <i class="fa-solid ${isCurrentUserCreditor ? 'fa-arrow-down' : 'fa-arrow-up'}" style="font-size: 20px; color: ${isCurrentUserCreditor ? '#30D158' : '#FF453A'};"></i>
+              </div>
+              <h3 class="text-md font-bold text-white" style="margin-bottom: 8px;">Extra Debt</h3>
+              <p class="text-sm" style="color: var(--ios-text-secondary); line-height: 1.6;">
+                 ${isCurrentUserCreditor 
+                    ? `<strong style="color: white;">${escapeHtml(debtorName)}</strong> needs to pay you <strong style="color: #30D158;">£${amount.toFixed(2)}</strong> extra.`
+                    : `You owe <strong style="color: white;">${escapeHtml(creditorName)}</strong> an extra <strong style="color: #FF453A;">£${amount.toFixed(2)}</strong>.`
+                 }
+              </p>
+              <p class="text-xs text-secondary" style="margin-top: 8px; opacity: 0.6;">This is included in the settlement suggestions.</p>
+           </div>
+           <div style="padding: 0 24px 24px;">
+              <button id="close-debt-info-btn" class="ios-btn secondary" style="width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px; font-weight: 600; color: var(--ios-text-secondary);">Got it</button>
+           </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      document.body.classList.add('modal-open');
+
+      const close = () => {
+          modal.remove();
+          document.body.classList.remove('modal-open');
+      };
+
+      modal.querySelector('#close-debt-info-btn').addEventListener('click', close);
+      modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+  };
+
   const recalcStats = () => {
      const total = state.expenses.reduce((sum, u) => sum + (u.amount || 0), 0);
      const count = state.expenses.length; 
@@ -569,6 +744,7 @@ export function createUserDashboard({ role, onLogout }) {
         // Cache the fresh data
         cache.set(CACHE_KEYS.CURRENT_EXPENSES, {
           expenses: data.expenses,
+          explicitDebts: data.explicitDebts || [],
           stats: data.stats,
           event: data.event,
           active: data.active,
@@ -576,12 +752,16 @@ export function createUserDashboard({ role, onLogout }) {
         });
 
         // Simple field comparison instead of JSON.stringify
+        const newDebts = data.explicitDebts || [];
         const changed = data.active !== state.active
                      || kingUserId !== state.kingUserId
                      || data.expenses.length !== state.expenses.length
-                     || data.expenses.some((e, i) => e.amount !== state.expenses[i]?.amount || e.user_id !== state.expenses[i]?.user_id);
+                     || data.expenses.some((e, i) => e.amount !== state.expenses[i]?.amount || e.user_id !== state.expenses[i]?.user_id)
+                     || newDebts.length !== state.explicitDebts.length
+                     || newDebts.some((d, i) => d.amount !== state.explicitDebts[i]?.amount || d.creditor_id !== state.explicitDebts[i]?.creditor_id || d.debtor_id !== state.explicitDebts[i]?.debtor_id);
 
         state.expenses = data.expenses;
+        state.explicitDebts = newDebts;
         state.stats = data.stats || { total: 0, users_count: 0, per_head: 0 };
         state.event = data.event;
         state.active = data.active;

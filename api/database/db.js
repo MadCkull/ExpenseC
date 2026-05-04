@@ -1,15 +1,21 @@
 import { createClient } from '@libsql/client';
 import bcrypt from 'bcryptjs';
 
-// Require Turso credentials - no fallback to local SQLite
-if (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN) {
-  throw new Error('❌ TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be set in .env.local');
+// Check for Test Mode (local SQLite)
+const isTestMode = process.env.TEST_MODE === 'true';
+
+if (!isTestMode && (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN)) {
+  throw new Error('❌ TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be set in .env.local unless TEST_MODE=true');
 }
 
-const db = createClient({
+const dbConfig = isTestMode ? {
+  url: 'file:local.db',
+} : {
   url: process.env.TURSO_DATABASE_URL,
   authToken: process.env.TURSO_AUTH_TOKEN,
-});
+};
+
+const db = createClient(dbConfig);
 
 let isInitialized = false;
 
@@ -123,6 +129,20 @@ export async function initDB() {
       );
     `);
 
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS explicit_debts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL,
+        creditor_id INTEGER NOT NULL,
+        debtor_id INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id),
+        FOREIGN KEY (creditor_id) REFERENCES users(id),
+        FOREIGN KEY (debtor_id) REFERENCES users(id)
+      );
+    `);
+
     // Insert default PINs
     const adminPinScan = await db.execute("SELECT value FROM settings WHERE key = 'admin_pin'");
     if (adminPinScan.rows.length === 0) {
@@ -146,6 +166,7 @@ export async function initDB() {
     try {
         await db.execute("CREATE INDEX IF NOT EXISTS idx_events_archived_at ON events(archived_at)");
         await db.execute("CREATE INDEX IF NOT EXISTS idx_events_gandu_id ON events(gandu_id)");
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_explicit_debts_event ON explicit_debts(event_id)");
     } catch(e) { /* ignore if already exists */ }
 
     isInitialized = true;

@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "server": "node --watch api/index.js",
-    "check-env": "node check-env.js"
+    "check-env": "node check-env.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
@@ -26,6 +27,7 @@
     "concurrently": "^9.2.1",
     "vite": "^7.2.4",
     "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.1.5",
     "workbox-window": "^7.4.0"
   }
 }

@@ -3,13 +3,25 @@ import { userStore } from './userStore.js';
 
 /**
  * Pure logic to calculate who pays who
+ * explicitDebts: [{ creditor_id, debtor_id, amount }]
  */
-export function calculateSettlements(expenses, perHead) {
+export function calculateSettlements(expenses, perHead, explicitDebts = []) {
     const balances = expenses.map(u => ({
         user_id: u.user_id,
         // Name/Avatar removed from calculation logic, resolved at render time
         balance: Number(u.amount || 0) - perHead
     }));
+
+    // Apply explicit debts as balance adjustments
+    // Creditor's balance goes up (they are owed more), debtor's goes down (they owe more)
+    for (const debt of explicitDebts) {
+        const creditor = balances.find(b => b.user_id == debt.creditor_id);
+        const debtor = balances.find(b => b.user_id == debt.debtor_id);
+        if (creditor && debtor) {
+            creditor.balance += debt.amount;
+            debtor.balance -= debt.amount;
+        }
+    }
 
     const debtors = balances.filter(b => b.balance < -0.01).sort((a,b) => a.balance - b.balance);
     const creditors = balances.filter(b => b.balance > 0.01).sort((a,b) => b.balance - a.balance);

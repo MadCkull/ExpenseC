@@ -44,11 +44,23 @@ router.get('/current', async (req, res) => {
     const total = enteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
     const userCount = expenses.length; 
     const perHead = userCount > 0 ? (total / userCount).toFixed(2) : 0;
+
+    // Fetch explicit debts for this event
+    const debtsResult = await db.execute({
+      sql: 'SELECT creditor_id, debtor_id, amount FROM explicit_debts WHERE event_id = ?',
+      args: [activeEvent.id]
+    });
+    const explicitDebts = debtsResult.rows.map(d => ({
+      creditor_id: d.creditor_id,
+      debtor_id: d.debtor_id,
+      amount: d.amount
+    }));
     
     res.json({
       active: true,
       event: activeEvent,
       expenses: result,
+      explicitDebts,
       stats: {
         total,
         users_count: userCount,

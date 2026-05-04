@@ -35,6 +35,18 @@ export function createAdminDashboard({ onBack }) {
     unsubscribe();
   };
 
+  const restoreSelectedParticipants = (users) => {
+      const saved = localStorage.getItem('expensec_selected_participants');
+      if (saved) {
+          try {
+              const parsed = JSON.parse(saved);
+              const validSelected = parsed.filter(id => users.find(u => u.id === id));
+              if (validSelected.length > 0) return validSelected;
+          } catch(e) {}
+      }
+      return users.map(u => u.id);
+  };
+
   // Subscribe to userStore changes for reactive image loading
   const unsubscribe = userStore.subscribe(() => {
     // Check if we have avatars now that we didn't have before
@@ -317,6 +329,7 @@ export function createAdminDashboard({ onBack }) {
                            nameSpan.classList.add('text-secondary');
                            indicator.innerHTML = '<i class="fa-regular fa-circle text-secondary opacity-20 text-lg"></i>';
                        }
+                       localStorage.setItem('expensec_selected_participants', JSON.stringify(state.selectedParticipants));
                        render(); // To update the count on the button in the background
                    });
                });
@@ -396,7 +409,7 @@ export function createAdminDashboard({ onBack }) {
       const changed = JSON.stringify(metadataOnly) !== JSON.stringify(oldRaw);
       state.users = users;
       if (state.selectedParticipants.length === 0) {
-          state.selectedParticipants = state.users.map(u => u.id);
+          state.selectedParticipants = restoreSelectedParticipants(state.users);
       }
       
       // Update global userStore with the fresh users list
@@ -427,7 +440,7 @@ export function createAdminDashboard({ onBack }) {
   const init = async () => {
     if (state.users.length > 0) {
       if (state.selectedParticipants.length === 0) {
-          state.selectedParticipants = state.users.map(u => u.id);
+          state.selectedParticipants = restoreSelectedParticipants(state.users);
       }
       state.loading = false;
       render();

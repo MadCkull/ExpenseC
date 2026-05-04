@@ -187,12 +187,30 @@ router.post('/archive', async (req, res) => {
     const count = expenses.length > 0 ? expenses.length : 0;
     const perHead = count > 0 ? (total / count) : 0;
 
-    // 3. Simple Settlement Calculation
-    const calculateSettlements = (exps, ph) => {
+    // Fetch explicit debts for this event
+    const debtsResult = await db.execute({
+      sql: 'SELECT creditor_id, debtor_id, amount FROM explicit_debts WHERE event_id = ?',
+      args: [event.id]
+    });
+    const explicitDebts = debtsResult.rows;
+
+    // 3. Simple Settlement Calculation (with explicit debts support)
+    const calculateSettlements = (exps, ph, debts = []) => {
         const balances = exps.map(u => ({
             user_id: u.user_id,
             balance: (u.amount || 0) - ph
         }));
+
+        // Apply explicit debts as balance adjustments
+        for (const debt of debts) {
+            const creditor = balances.find(b => b.user_id === debt.creditor_id || b.user_id == debt.creditor_id);
+            const debtor = balances.find(b => b.user_id === debt.debtor_id || b.user_id == debt.debtor_id);
+            if (creditor && debtor) {
+                creditor.balance += debt.amount;
+                debtor.balance -= debt.amount;
+            }
+        }
+
         const debtors = balances.filter(b => b.balance < -0.01).sort((a,b) => a.balance - b.balance);
         const creditors = balances.filter(b => b.balance > 0.01).sort((a,b) => b.balance - a.balance);
         const settlements = [];
@@ -215,7 +233,7 @@ router.post('/archive', async (req, res) => {
         return settlements;
     };
 
-    const settlements = calculateSettlements(expenses, perHead);
+    const settlements = calculateSettlements(expenses, perHead, explicitDebts);
 
     // 4. Update Event with Locked Stats and Archive it
     await db.execute({
@@ -242,6 +260,7 @@ router.post('/archive', async (req, res) => {
 router.delete('/:id', async (req, res) => {
    try {
      const { id } = req.params;
+     await db.execute({ sql: 'DELETE FROM explicit_debts WHERE event_id = ?', args: [id] });
      await db.execute({ sql: 'DELETE FROM expenses WHERE event_id = ?', args: [id] });
      await db.execute({ sql: 'DELETE FROM events WHERE id = ?', args: [id] });
      res.json({ success: true });
