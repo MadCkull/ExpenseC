@@ -1,6 +1,7 @@
 import express from 'express';
 import db from '../database/db.js';
 import { formatToEng, parseFromEng } from '../utils/dateUtils.js';
+import { sendPushToEvent } from '../utils/pushService.js';
 
 const router = express.Router();
 
@@ -86,6 +87,13 @@ router.post('/start', async (req, res) => {
     }
     
     res.json({ success: true, id: eventId });
+
+    // Send push notification to all participants (fire and forget)
+    sendPushToEvent(eventId, {
+        title: '🟢 New Event Started!',
+        body: `"${name}" — Time to track expenses!`,
+        data: { url: '/' }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -254,6 +262,37 @@ router.post('/archive', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// Reopen a recently archived event
+router.post('/reopen', async (req, res) => {
+   try {
+     const { id } = req.body;
+     if (!id) return res.status(400).json({ error: 'Event ID is required' });
+
+     // Check no other event is currently active
+     const activeCheck = await db.execute('SELECT id FROM events WHERE is_active = 1 LIMIT 1');
+     if (activeCheck.rows.length > 0) {
+       return res.status(400).json({ error: 'Another event is already active. End it first.' });
+     }
+
+     // Reopen the event
+     await db.execute({
+       sql: 'UPDATE events SET is_active = 1, archived_at = NULL, settlements_json = NULL, total_amount = 0, per_head = 0 WHERE id = ?',
+       args: [id]
+     });
+
+     res.json({ success: true });
+
+     // Notify participants
+     sendPushToEvent(id, {
+         title: '🔄 Event Reopened!',
+         body: 'An event has been reopened. You may need to update your expenses.',
+         data: { url: '/' }
+     });
+   } catch (error) {
+     res.status(500).json({ error: error.message });
+   }
 });
 
 // Delete event

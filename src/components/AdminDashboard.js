@@ -175,9 +175,12 @@ export function createAdminDashboard({ onBack }) {
              const range = ev.start_date ? `${uiDate(ev.start_date)} - ${uiDate(ev.end_date)}` : new Date(ev.created_at).toLocaleDateString();
              html += `
                 <div class="swipe-item-container mb-3" style="border-radius: 13px;">
-                   <div class="swipe-item-actions" style="background: transparent; width: 70px;">
-                      <button data-action="delete-event" data-id="${ev.id}" style="background: none; border: none; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
-                         <i class="fa-solid fa-trash-can swipe-delete-icon" style="font-size: 16px; color: #8F1915; opacity: 0; transform: scale(0.6); transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);"></i>
+                   <div class="swipe-item-actions" style="background: transparent; width: 140px; display: flex;">
+                      <button data-action="reopen-event" data-id="${ev.id}" style="background: none; border: none; width: 50%; height: 100%; display: flex; align-items: center; justify-content: center;">
+                         <i class="fa-solid fa-rotate-left swipe-action-icon" style="font-size: 16px; color: var(--ios-blue); opacity: 0; transform: scale(0.6); transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);"></i>
+                      </button>
+                      <button data-action="delete-event" data-id="${ev.id}" style="background: none; border: none; width: 50%; height: 100%; display: flex; align-items: center; justify-content: center;">
+                         <i class="fa-solid fa-trash-can swipe-action-icon" style="font-size: 16px; color: #8F1915; opacity: 0; transform: scale(0.6); transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);"></i>
                       </button>
                    </div>
                    <div class="swipe-item-content ios-card" data-id="${ev.id}" style="margin-bottom: 0; background: rgba(44, 44, 46, 0.45); padding: 12px 16px; border: 1px solid rgba(255,255,255,0.03);">
@@ -354,13 +357,32 @@ export function createAdminDashboard({ onBack }) {
          });
        });
 
+       container.querySelectorAll('[data-action="reopen-event"]').forEach(btn => {
+         btn.addEventListener('click', async (e) => {
+            const id = e.target.closest('button').dataset.id;
+            const activeEvent = state.history.find(w => w.is_active === 1);
+            if (activeEvent) {
+               alert("Cannot reopen while another event is active. End it first.");
+               return;
+            }
+            if (confirm("Reopen this event? This will remove the summary card and let users add expenses again.")) {
+               try {
+                   await api.events.reopen(id);
+                   await loadHistory();
+               } catch (err) {
+                   alert(err.message || 'Failed to reopen event');
+               }
+            }
+         });
+       });
+
        // Swipe logic
        container.querySelectorAll('.swipe-item-container').forEach(swipeContainer => {
           let startX = 0;
           let currentX = 0;
           const content = swipeContainer.querySelector('.swipe-item-content');
-          const icon = swipeContainer.querySelector('.swipe-delete-icon');
-          const actionWidth = 70;
+          const icons = swipeContainer.querySelectorAll('.swipe-action-icon');
+          const actionWidth = 140;
 
           swipeContainer.addEventListener('touchstart', (e) => {
              startX = e.touches[0].clientX;
@@ -374,10 +396,10 @@ export function createAdminDashboard({ onBack }) {
                const finalX = Math.max(x, -actionWidth - 20);
                content.style.transform = `translateX(${finalX}px)`;
                const progress = Math.min(1, Math.abs(finalX) / actionWidth);
-               if (icon) {
+               icons.forEach(icon => {
                   icon.style.opacity = progress.toString();
                   icon.style.transform = `scale(${0.6 + (progress * 0.4)})`;
-               }
+               });
              }
           }, { passive: true });
 

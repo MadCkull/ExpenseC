@@ -6,6 +6,7 @@ import { cache, CACHE_KEYS, TTL } from '../utils/cache.js';
 import { userStore } from '../utils/userStore.js';
 import { uiDate } from '../utils/dateUtils.js';
 import { calculateSettlements, showSettlementModal, renderPersonalSummaryCard } from '../utils/settlements.js';
+import { isPushSupported, subscribeToPush, isSubscribed } from '../utils/pushManager.js';
 
 export function createUserDashboard({ role, onLogout }) {
   const container = document.createElement('div');
@@ -27,7 +28,8 @@ export function createUserDashboard({ role, onLogout }) {
     active: cached?.active ?? true,
     event: cached?.event || null,
     currentUserId: localStorage.getItem('expensec_user_id'),
-    kingUserId: cached?.kingUserId || null
+    kingUserId: cached?.kingUserId || null,
+    lastEvent: cached?.lastEvent || null
   };
 
   const unsubscribe = userStore.subscribe(() => {
@@ -40,6 +42,119 @@ export function createUserDashboard({ role, onLogout }) {
     if (_destroyed) return;
     _destroyed = true;
     unsubscribe();
+  };
+
+  // --- Passive-Aggressive Meteorology ---
+  let rainInterval;
+  const startRain = () => {
+      if (document.getElementById('rain-style')) return;
+      
+      const style = document.createElement('style');
+      style.id = 'rain-style';
+      style.innerHTML = `
+      .rain-word {
+        position: fixed;
+        top: -50px;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.4);
+        pointer-events: none;
+        animation: fall linear forwards;
+        user-select: none;
+        z-index: 9999;
+        font-weight: bold;
+      }
+      @keyframes fall {
+        to { transform: translateY(110vh); }
+      }
+      `;
+      document.head.appendChild(style);
+
+      rainInterval = setInterval(() => {
+          if (Notification.permission === 'granted') {
+              clearInterval(rainInterval);
+              location.reload();
+              return;
+          }
+          if (Notification.permission !== 'denied') return;
+
+          const el = document.createElement('div');
+          el.className = 'rain-word';
+          el.textContent = 'Allow Notifications!';
+          
+          el.style.left = Math.random() * 100 + 'vw';
+          el.style.animationDuration = (3 + Math.random() * 4) + 's';
+
+          document.body.appendChild(el);
+          setTimeout(() => el.remove(), 7000);
+      }, 300);
+  };
+
+  const checkNotificationStatus = () => {
+      if (!isPushSupported() || !state.currentUserId) return;
+      if (Notification.permission === 'denied') {
+          startRain();
+      } else if (Notification.permission === 'default') {
+          // Attempt to prompt. Will work if dashboard load was part of a user gesture (e.g. from lock screen)
+          subscribeToPush(state.currentUserId).then(() => {
+              if (Notification.permission === 'denied') startRain();
+          });
+      }
+  };
+
+  // Trigger check shortly after dashboard mounts
+  setTimeout(checkNotificationStatus, 500);
+
+  const isPwa = () =>
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true ||
+    document.referrer.includes('android-app://');
+
+  const showInstallRequiredModal = () => {
+    if (document.getElementById('pwa-required-modal')) return;
+    const modal = document.createElement('div');
+    modal.id = 'pwa-required-modal';
+    modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); z-index:9999; display:flex; align-items:center; justify-content:center; padding: 24px;';
+    modal.innerHTML = `
+      <div class="ios-card w-full fade-in" style="max-width: 360px; padding: 0; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
+        <div style="background: linear-gradient(135deg, rgba(10,132,255,0.2), rgba(0,0,0,0)); padding: 32px 28px 24px; text-align: center;">
+          <div style="width: 72px; height: 72px; border-radius: 20px; background: linear-gradient(135deg, #0A84FF, #5E5CE6); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; box-shadow: 0 8px 32px rgba(10,132,255,0.4);">
+            <i class="fa-solid fa-mobile-screen-button" style="font-size: 32px; color: white;"></i>
+          </div>
+          <h2 style="font-size: 20px; font-weight: 800; color: white; margin-bottom: 10px; letter-spacing: -0.3px;">App Install Required</h2>
+          <p style="font-size: 14px; color: var(--ios-text-secondary); line-height: 1.6; margin-bottom: 0;">History &amp; Analytics are only available in the installed app on <strong style="color: var(--ios-text-primary);">iOS</strong>, <strong style="color: var(--ios-text-primary);">Android</strong>, or <strong style="color: var(--ios-text-primary);">Windows</strong>.</p>
+        </div>
+        <div style="padding: 8px 20px 28px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
+            <i class="fa-brands fa-apple" style="font-size: 22px; color: white; width: 24px; text-align: center;"></i>
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: white;">iOS / iPadOS</div>
+              <div style="font-size: 11px; color: var(--ios-text-secondary); margin-top: 2px;">Safari → Share → <em>Add to Home Screen</em></div>
+            </div>
+          </div>
+          <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
+            <i class="fa-brands fa-android" style="font-size: 22px; color: #3DDC84; width: 24px; text-align: center;"></i>
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: white;">Android</div>
+              <div style="font-size: 11px; color: var(--ios-text-secondary); margin-top: 2px;">Chrome → Menu → <em>Add to Home Screen</em></div>
+            </div>
+          </div>
+          <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
+            <i class="fa-brands fa-windows" style="font-size: 22px; color: #0078d4; width: 24px; text-align: center;"></i>
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: white;">Windows</div>
+              <div style="font-size: 11px; color: var(--ios-text-secondary); margin-top: 2px;">Edge / Chrome → Install button in address bar</div>
+            </div>
+          </div>
+          <button id="close-pwa-modal" style="margin-top: 4px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; color: white; font-size: 15px; font-weight: 600; padding: 14px; cursor: pointer; width: 100%; transition: opacity 0.2s;">Got it</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.body.classList.add('modal-open');
+    modal.querySelector('#close-pwa-modal').addEventListener('click', () => {
+       modal.remove();
+       document.body.classList.remove('modal-open');
+    });
   };
 
   const render = () => {
@@ -94,7 +209,8 @@ export function createUserDashboard({ role, onLogout }) {
     const otherUsers = expenses.filter(u => u.user_id != state.currentUserId);
     const isParticipant = expenses.some(u => u.user_id == state.currentUserId);
     
-    // Header
+    // Header — adapt subtitle for summary card state
+    const showSummaryCard = !state.active && state.lastEvent;
     let html = `
       <header class="flex justify-between items-center mb-6 safe-area-top">
         <div class="flex flex-col" style="max-width: 60%;">
@@ -106,7 +222,7 @@ export function createUserDashboard({ role, onLogout }) {
                 <div class="text-sm font-semibold">${escapeHtml(state.event.name)}</div>
                 <div class="text-xs text-secondary font-mono">${uiDate(state.event.start_date)} - ${uiDate(state.event.end_date)}</div>
              </div>
-          ` : `<p class="text-secondary text-xs mt-1">No Active Event</p>`}
+          ` : showSummaryCard ? '' : `<p class="text-secondary text-xs mt-1">No Active Event</p>`}
         </div>
         <div class="flex items-center gap-sm">
           <button id="gandu-btn" style="background: rgba(10, 132, 255, 0.1); border: 1px solid rgba(10, 132, 255, 0.3); border-radius: 30px; padding: 0 12px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
@@ -118,27 +234,35 @@ export function createUserDashboard({ role, onLogout }) {
           <button class="ios-btn secondary text-red" id="logout-btn" style="width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-lock"></i></button>
         </div>
       </header>
-
-      <div id="stats-area">
-        ${renderStatsCard()}
-      </div>
-
-      ${state.active && isParticipant ? `
-      <div class="mb-8 mt-2">
-         <h3 class="text-xs text-secondary mb-3 uppercase tracking-widest px-1 font-bold" style="margin-bottom: 12px;">Your Spending</h3>
-         ${currentUser ? renderHeroInput(currentUser) : ''}
-      </div>
-      ` : ''}
-
-      <div class="collaborators-section">
-         <h3 class="text-xs text-secondary mb-3 uppercase tracking-widest px-1 font-bold" style="margin-bottom: 12px;">The Group</h3>
-         <div class="flex flex-col gap-sm">
-            ${otherUsers.length > 0 ? otherUsers.map(u => renderCollaboratorRow(u, state.currentUserId)).join('') : '<div class="text-center p-4 text-secondary text-sm">No other participants</div>'}
-         </div>
-      </div>
-      
-      <div style="height: 100px;"></div>
     `;
+
+    if (showSummaryCard) {
+        // ── Summary Card ──
+        html += renderSummaryCard();
+    } else {
+        // ── Normal Active Event UI ──
+        html += `
+          <div id="stats-area">
+            ${renderStatsCard()}
+          </div>
+
+          ${state.active && isParticipant ? `
+          <div class="mb-8 mt-2">
+             <h3 class="text-xs text-secondary mb-3 uppercase tracking-widest px-1 font-bold" style="margin-bottom: 12px;">Your Spending</h3>
+             ${currentUser ? renderHeroInput(currentUser) : ''}
+          </div>
+          ` : ''}
+
+          <div class="collaborators-section">
+             <h3 class="text-xs text-secondary mb-3 uppercase tracking-widest px-1 font-bold" style="margin-bottom: 12px;">The Group</h3>
+             <div class="flex flex-col gap-sm">
+                ${otherUsers.length > 0 ? otherUsers.map(u => renderCollaboratorRow(u, state.currentUserId)).join('') : '<div class="text-center p-4 text-secondary text-sm">No other participants</div>'}
+             </div>
+          </div>
+        `;
+    }
+
+    html += `<div style="height: 100px;"></div>`;
 
     scrollWrapper.innerHTML = html;
     attachListeners();
@@ -181,6 +305,231 @@ export function createUserDashboard({ role, onLogout }) {
           </div>
         `;
     }
+  };
+
+  const renderSummaryCard = () => {
+      const ev = state.lastEvent;
+      if (!ev) return '';
+
+      const total = Number(ev.total_amount || 0);
+      const perHead = Number(ev.per_head || 0);
+      const count = Number(ev.participants_count || 0);
+      const ganduName = ev.gandu_id ? (userStore.getName(ev.gandu_id) || 'Unknown') : null;
+      const ganduAvatar = ev.gandu_id ? userStore.getAvatar(ev.gandu_id) : null;
+      
+      let userSettlementsHtml = '';
+      if (state.currentUserId) {
+          const settlements = ev.settlements_json ? JSON.parse(ev.settlements_json) : [];
+          const mySettlements = settlements.filter(s => s.from.user_id == state.currentUserId || s.to.user_id == state.currentUserId);
+          
+          if (mySettlements.length > 0) {
+              const itemsHtml = mySettlements.map(s => {
+                  const isPaying = s.from.user_id == state.currentUserId;
+                  const otherUserId = isPaying ? s.to.user_id : s.from.user_id;
+                  const otherUserName = userStore.getName(otherUserId) || 'Unknown';
+                  const otherUserAvatar = userStore.getAvatar(otherUserId);
+                  const amount = s.amount;
+                  const color = isPaying ? 'var(--ios-red)' : 'var(--ios-green)';
+                  const icon = isPaying ? 'fa-arrow-up' : 'fa-arrow-down';
+                  const bg = isPaying ? 'rgba(255, 69, 58, 0.1)' : 'rgba(48, 209, 88, 0.1)';
+                  
+                  return `
+                     <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 70px; background: rgba(0,0,0,0.2); padding: 10px 6px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.03);">
+                        <div onclick="window.openFullAvatar('${otherUserId}')" style="cursor: pointer;">
+                           ${renderAvatar({ name: otherUserName, avatar: otherUserAvatar }, 36)}
+                        </div>
+                        <div class="text-[10px] font-bold text-white truncate w-full text-center">${escapeHtml(otherUserName.split(' ')[0])}</div>
+                        <div style="background: ${bg}; color: ${color}; font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 10px; white-space: nowrap; letter-spacing: 0.5px;">
+                           <i class="fa-solid ${icon} text-[8px]"></i> £${amount.toFixed(2)}
+                        </div>
+                     </div>
+                  `;
+              }).join('');
+              
+              userSettlementsHtml = `
+                 <div style="height: 1px; background: rgba(255,255,255,0.06); margin: 20px 0 16px 0;"></div>
+                 <div class="text-[10px] text-secondary uppercase tracking-wider font-bold mb-3 text-center" style="opacity: 0.7;">Your Settlements</div>
+                 
+                 ${isPwa() ? `
+                     <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; justify-content: center; scrollbar-width: none; -webkit-overflow-scrolling: touch;">
+                        ${itemsHtml}
+                     </div>
+                 ` : `
+                     <div id="summary-install-prompt" class="text-center py-4 cursor-pointer transition-opacity hover:opacity-80">
+                        <i class="fa-solid fa-download text-blue mb-2 text-lg" style="background: rgba(10, 132, 255, 0.1); border-radius: 12px; border: 1px dashed rgba(10, 132, 255, 0.3); padding: 9px"></i>
+                        <div class="text-xs font-bold text-blue">Install App to view your settlements</div>
+                     </div>
+                 `}
+              `;
+          }
+      }
+
+      return `
+        <div id="summary-card-wrapper" class="mb-4" style="background: transparent; border-radius: 0; padding: 0;">
+           <div id="summary-card-capture" class="ios-card fade-in" style="background: linear-gradient(145deg, rgba(10, 132, 255, 0.08), rgba(94, 92, 230, 0.06), rgba(0,0,0,0.3)); border: 1px solid rgba(10, 132, 255, 0.2); padding: 24px 20px; position: relative; overflow: hidden; border-radius: 24px;">
+              
+              <div style="position: absolute; top: -40px; right: -40px; width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, rgba(10, 132, 255, 0.08), transparent); pointer-events: none;"></div>
+
+           <!-- Share Button (Bottom Right) -->
+           <button id="share-summary-btn" style="position: absolute; bottom: 16px; right: 16px; color: var(--ios-blue); background: rgba(10, 132, 255, 0.1); border: 1px solid rgba(10, 132, 255, 0.3); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; z-index: 20; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+              <i class="fa-solid fa-share-from-square text-[14px] text-white opacity-90" style="margin: 1px -2px 0 0;"></i>
+           </button>
+
+           <!-- Top Header inside Card -->
+           <div class="flex justify-between items-start mb-6">
+               <div class="flex flex-col">
+                  <div class="text-[14px] font-bold text-white mb-1 flex items-center gap-2">
+                     <i class="fa-solid fa-circle-check" style="font-size: 10px; color: #30D158;"></i>
+                     <span id="summary-title-text">${escapeHtml(ev.name)}</span>
+                  </div>
+                  <div class="text-[10px] text-secondary font-mono mt-1 opacity-70">${uiDate(ev.start_date)} - ${uiDate(ev.end_date)}</div>
+               </div>
+               
+               <button id="summary-settlements-btn" class="suggestions-pill" style="position: static; margin: 0; padding: 6px 12px; font-size: 10px; color: var(--ios-blue); background: rgba(10, 132, 255, 0.1); border: 1px solid rgba(10, 132, 255, 0.3);">
+                  Settlements
+               </button>
+           </div>
+
+           <!-- Central Gandu Display (Semi-card) -->
+           <div class="text-center flex flex-col items-center mb-6">
+              ${ganduName ? `
+                  <div class="gandu-semi-card" style="background: rgba(255, 214, 10, 0.05); border: 1px dashed rgba(255, 214, 10, 0.2); border-radius: 20px; padding: 16px 24px; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 200px; box-shadow: inset 0 0 20px rgba(255, 214, 10, 0.02);">
+                     <div class="gandu-title" style="color: #FFD60A; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; text-shadow: 0 0 10px rgba(255, 214, 10, 0.3);">
+                        <i class="fa-solid fa-crown text-[12px]"></i> Gandu of the Week
+                     </div>
+                     <div onclick="window.openFullAvatar('${ev.gandu_id}')" style="cursor: pointer;">
+                        ${renderAvatar({ name: ganduName, avatar: ganduAvatar }, 72)}
+                     </div>
+                     <div class="text-xl font-black mt-3" style="color: #FFD60A; letter-spacing: -0.5px; text-shadow: 0 2px 8px rgba(255, 214, 10, 0.2);">${escapeHtml(ganduName)}</div>
+                  </div>
+              ` : `
+                  <div class="text-lg font-bold text-white mb-1">No Gandu</div>
+              `}
+           </div>
+
+           <!-- Stats Row -->
+           <div class="flex justify-between" style="background: rgba(0,0,0,0.2); border-radius: 14px; padding: 12px 16px;">
+              <div class="text-center" style="flex: 1;">
+                 <div class="text-[10px] text-secondary uppercase tracking-wider font-bold" style="opacity: 0.5;">Total</div>
+                 <div class="text-sm font-bold text-white mt-1">£${total.toFixed(2)}</div>
+              </div>
+              <div style="width: 1px; background: rgba(255,255,255,0.06);"></div>
+              <div class="text-center" style="flex: 1;">
+                 <div class="text-[10px] text-secondary uppercase tracking-wider font-bold" style="opacity: 0.5;">People</div>
+                 <div class="text-sm font-bold text-white mt-1">${count}</div>
+              </div>
+              <div style="width: 1px; background: rgba(255,255,255,0.06);"></div>
+              <div class="text-center" style="flex: 1;">
+                 <div class="text-[10px] text-secondary uppercase tracking-wider font-bold" style="opacity: 0.5;">Per Head</div>
+                 <div class="text-sm font-bold text-blue mt-1">£${perHead.toFixed(2)}</div>
+              </div>
+           </div>
+
+           ${userSettlementsHtml}
+           </div>
+        </div>
+      `;
+  };
+
+  const shareSummaryCard = async () => {
+      const wrapperEl = document.getElementById('summary-card-wrapper');
+      const cardEl = document.getElementById('summary-card-capture');
+      if (!wrapperEl || !cardEl) return;
+
+      // Provide immediate feedback
+      const shareBtn = cardEl.querySelector('#share-summary-btn');
+      const originalBtnHtml = shareBtn ? shareBtn.innerHTML : '';
+      if (shareBtn) shareBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[14px] text-white"></i>';
+
+      try {
+          const html2canvas = (await import('html2canvas')).default;
+          const canvas = await html2canvas(wrapperEl, {
+              backgroundColor: null, // Keep outside corners transparent
+              scale: 2,
+              useCORS: true,
+              logging: false,
+              onclone: (clonedDoc) => {
+                  const clonedCard = clonedDoc.getElementById('summary-card-capture');
+                  if (!clonedCard) return;
+
+                  // 1. Hide the share button in the capture
+                  const clonedShareBtn = clonedCard.querySelector('#share-summary-btn');
+                  if (clonedShareBtn) clonedShareBtn.style.display = 'none';
+
+                  // 2. Remove fade-in animation state
+                  clonedCard.classList.remove('fade-in');
+                  clonedCard.style.opacity = '1';
+
+                  // 3. Fix Washed Out Colors: Apply opaque background equivalent to original transparent gradient over #1c1c1e
+                  clonedCard.style.background = 'linear-gradient(145deg, #1f222e, #201e2c, #131315)';
+                  clonedCard.style.borderRadius = '24px'; // Ensure radius is preserved explicitly
+
+                  // 4. Fix Gandu text/shadows causing scattered pixels or annoying blocks
+                  const ganduCard = clonedCard.querySelector('.gandu-semi-card');
+                  if (ganduCard) ganduCard.style.boxShadow = 'none';
+                  
+                  const ganduTitle = clonedCard.querySelector('.gandu-title');
+                  if (ganduTitle) {
+                      ganduTitle.style.textShadow = 'none';
+                      ganduTitle.style.letterSpacing = 'normal';
+                  }
+
+                  // 5. Replace Event Name with Current User Name
+                  const titleEl = clonedCard.querySelector('#summary-title-text');
+                  if (titleEl && state.currentUserId) {
+                      const name = userStore.getName(state.currentUserId) || localStorage.getItem('expensec_user_name') || 'Me';
+                      titleEl.innerHTML = escapeHtml(name);
+                      
+                      const tickIcon = titleEl.previousElementSibling;
+                      if (tickIcon && tickIcon.classList.contains('fa-circle-check')) {
+                          tickIcon.style.display = 'none';
+                      }
+                  }
+
+                  // 6. Replace Settlements pill with Total Spent
+                  const pillBtn = clonedCard.querySelector('#summary-settlements-btn');
+                  if (pillBtn && state.currentUserId && state.lastEvent?.expenses) {
+                      const myExp = state.lastEvent.expenses.find(e => e.user_id == state.currentUserId);
+                      const spent = myExp ? Number(myExp.amount || 0) : 0;
+                      pillBtn.innerHTML = `£${spent.toFixed(2)}`;
+                      pillBtn.style.background = 'rgba(48, 209, 88, 0.15)';
+                      pillBtn.style.color = '#30D158';
+                      pillBtn.style.border = '1px solid rgba(48, 209, 88, 0.3)';
+                      pillBtn.style.fontSize = '12px';
+                      pillBtn.style.padding = '8px 16px';
+                  }
+
+                  // 7. Force body to transparent so the corners don't pick up the app's dark background
+                  clonedDoc.body.style.background = 'transparent';
+                  clonedDoc.documentElement.style.background = 'transparent';
+              }
+          });
+
+          canvas.toBlob(async (blob) => {
+              if (!blob) return;
+
+              const file = new File([blob], 'expense-summary.png', { type: 'image/png' });
+
+              if (navigator.share && navigator.canShare?.({ files: [file] })) {
+                  await navigator.share({
+                      title: `${state.lastEvent?.name || 'Week'} Summary`,
+                      files: [file]
+                  });
+              } else {
+                  // Fallback: download
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'expense-summary.png';
+                  a.click();
+                  URL.revokeObjectURL(url);
+              }
+          }, 'image/png');
+      } catch (err) {
+          console.error('Share failed:', err);
+      } finally {
+          if (shareBtn) shareBtn.innerHTML = originalBtnHtml;
+      }
   };
 
   const renderHeroInput = (user) => {
@@ -266,57 +615,6 @@ export function createUserDashboard({ role, onLogout }) {
       `;
   };
 
-  const isPwa = () =>
-    window.matchMedia('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true ||
-    document.referrer.includes('android-app://');
-
-  const showInstallRequiredModal = () => {
-    if (document.getElementById('pwa-required-modal')) return;
-    const modal = document.createElement('div');
-    modal.id = 'pwa-required-modal';
-    modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); z-index:9999; display:flex; align-items:center; justify-content:center; padding: 24px;';
-    modal.innerHTML = `
-      <div class="ios-card w-full fade-in" style="max-width: 360px; padding: 0; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
-        <div style="background: linear-gradient(135deg, rgba(10,132,255,0.2), rgba(0,0,0,0)); padding: 32px 28px 24px; text-align: center;">
-          <div style="width: 72px; height: 72px; border-radius: 20px; background: linear-gradient(135deg, #0A84FF, #5E5CE6); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; box-shadow: 0 8px 32px rgba(10,132,255,0.4);">
-            <i class="fa-solid fa-mobile-screen-button" style="font-size: 32px; color: white;"></i>
-          </div>
-          <h2 style="font-size: 20px; font-weight: 800; color: white; margin-bottom: 10px; letter-spacing: -0.3px;">App Install Required</h2>
-          <p style="font-size: 14px; color: var(--ios-text-secondary); line-height: 1.6; margin-bottom: 0;">History &amp; Analytics are only available in the installed app on <strong style="color: var(--ios-text-primary);">iOS</strong>, <strong style="color: var(--ios-text-primary);">Android</strong>, or <strong style="color: var(--ios-text-primary);">Windows</strong>.</p>
-        </div>
-        <div style="padding: 8px 20px 28px; display: flex; flex-direction: column; gap: 10px;">
-          <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
-            <i class="fa-brands fa-apple" style="font-size: 22px; color: white; width: 24px; text-align: center;"></i>
-            <div>
-              <div style="font-size: 13px; font-weight: 700; color: white;">iOS / iPadOS</div>
-              <div style="font-size: 11px; color: var(--ios-text-secondary); margin-top: 2px;">Safari → Share → <em>Add to Home Screen</em></div>
-            </div>
-          </div>
-          <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
-            <i class="fa-brands fa-android" style="font-size: 22px; color: #3DDC84; width: 24px; text-align: center;"></i>
-            <div>
-              <div style="font-size: 13px; font-weight: 700; color: white;">Android</div>
-              <div style="font-size: 11px; color: var(--ios-text-secondary); margin-top: 2px;">Chrome → Menu → <em>Add to Home Screen</em></div>
-            </div>
-          </div>
-          <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
-            <i class="fa-brands fa-windows" style="font-size: 22px; color: #0078d4; width: 24px; text-align: center;"></i>
-            <div>
-              <div style="font-size: 13px; font-weight: 700; color: white;">Windows</div>
-              <div style="font-size: 11px; color: var(--ios-text-secondary); margin-top: 2px;">Edge / Chrome → Install button in address bar</div>
-            </div>
-          </div>
-          <button id="close-pwa-modal" style="margin-top: 4px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; color: white; font-size: 15px; font-weight: 600; padding: 14px; cursor: pointer; width: 100%; transition: opacity 0.2s;">Got it</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-    document.body.classList.add('modal-open');
-    const close = () => { modal.remove(); document.body.classList.remove('modal-open'); };
-    modal.querySelector('#close-pwa-modal').addEventListener('click', close);
-    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
-  };
 
   const attachListeners = () => {
     container.querySelector('#logout-btn')?.addEventListener('click', () => {
@@ -342,6 +640,23 @@ export function createUserDashboard({ role, onLogout }) {
             currentUser: state.expenses.find(u => u.user_id == state.currentUserId) 
         });
     });
+
+    // Summary card buttons
+    container.querySelector('#summary-settlements-btn')?.addEventListener('click', () => {
+        if (!isPwa()) { showInstallRequiredModal(); return; }
+        const ev = state.lastEvent;
+        if (!ev?.settlements_json) return;
+        const settlements = JSON.parse(ev.settlements_json);
+        showSettlementModal({ 
+            settlements, 
+            currentUser: null,
+            title: `${ev.name} — Settlements`
+        });
+    });
+
+    container.querySelector('#share-summary-btn')?.addEventListener('click', shareSummaryCard);
+    
+    container.querySelector('#summary-install-prompt')?.addEventListener('click', showInstallRequiredModal);
 
     // Make collaborator rows clickable to add explicit debts
     if (state.active) {
@@ -578,6 +893,12 @@ export function createUserDashboard({ role, onLogout }) {
                   localStorage.setItem('expensec_user_id', id);
                   localStorage.setItem('expensec_user_name', name);
                   state.currentUserId = id;
+                  
+                  // Trigger push subscription prompt immediately on selection
+                  if (isPushSupported()) {
+                      subscribeToPush(id);
+                  }
+
                   closeModal();
               });
           });
@@ -748,7 +1069,8 @@ export function createUserDashboard({ role, onLogout }) {
           stats: data.stats,
           event: data.event,
           active: data.active,
-          kingUserId: kingUserId
+          kingUserId: kingUserId,
+          lastEvent: data.lastEvent || null
         });
 
         // Simple field comparison instead of JSON.stringify
@@ -758,7 +1080,8 @@ export function createUserDashboard({ role, onLogout }) {
                      || data.expenses.length !== state.expenses.length
                      || data.expenses.some((e, i) => e.amount !== state.expenses[i]?.amount || e.user_id !== state.expenses[i]?.user_id)
                      || newDebts.length !== state.explicitDebts.length
-                     || newDebts.some((d, i) => d.amount !== state.explicitDebts[i]?.amount || d.creditor_id !== state.explicitDebts[i]?.creditor_id || d.debtor_id !== state.explicitDebts[i]?.debtor_id);
+                     || newDebts.some((d, i) => d.amount !== state.explicitDebts[i]?.amount || d.creditor_id !== state.explicitDebts[i]?.creditor_id || d.debtor_id !== state.explicitDebts[i]?.debtor_id)
+                     || (data.lastEvent?.id !== state.lastEvent?.id);
 
         state.expenses = data.expenses;
         state.explicitDebts = newDebts;
@@ -766,12 +1089,22 @@ export function createUserDashboard({ role, onLogout }) {
         state.event = data.event;
         state.active = data.active;
         state.kingUserId = kingUserId;
+        state.lastEvent = data.lastEvent || null;
         state.loading = false;
         
         // Cache current user name if found
         const currentUserInEvent = data.expenses.find(u => u.user_id == state.currentUserId);
         if (currentUserInEvent) {
             localStorage.setItem('expensec_user_name', currentUserInEvent.user_name);
+        }
+        
+        // Silently attempt push subscription (if permission already granted)
+        if (state.currentUserId && isPushSupported()) {
+            isSubscribed().then(already => {
+                if (!already && Notification.permission === 'granted') {
+                    subscribeToPush(state.currentUserId);
+                }
+            });
         }
         
         if (changed || !silent) {

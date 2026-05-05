@@ -69,6 +69,7 @@ if (!self.define) {
 }
 define(['./workbox-8839f217'], (function (workbox) { 'use strict';
 
+  importScripts("/push-sw.js");
   self.skipWaiting();
   workbox.clientsClaim();
 
@@ -82,7 +83,7 @@ define(['./workbox-8839f217'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "index.html",
-    "revision": "0.qp98lm5a9h"
+    "revision": "0.uh7oj8snaug"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {

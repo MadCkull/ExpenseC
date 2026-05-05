@@ -42,11 +42,16 @@ export const api = {
     history: () => fetchJson(`/events/history?t=${Date.now()}`),
     start: (name, participant_ids, start_date, end_date) => fetchJson('/events/start', { method: 'POST', body: JSON.stringify({ name, participant_ids, start_date, end_date }) }),
     archive: (id) => fetchJson('/events/archive', { method: 'POST', body: JSON.stringify({ id }) }),
+    reopen: (id) => fetchJson('/events/reopen', { method: 'POST', body: JSON.stringify({ id }) }),
     delete: (id) => fetchJson(`/events/${id}`, { method: 'DELETE' }),
     analytics: (start, end) => fetchJson(`/events/analytics?start_date=${start || ''}&end_date=${end || ''}&t=${Date.now()}`),
   },
   explicitDebts: {
     update: (creditor_id, debtor_id, amount) => fetchJson('/explicit-debts/update', { method: 'POST', body: JSON.stringify({ creditor_id, debtor_id, amount }) }),
+  },
+  notifications: {
+    subscribe: (user_id, subscription) => fetchJson('/notifications/subscribe', { method: 'POST', body: JSON.stringify({ user_id, subscription }) }),
+    unsubscribe: (endpoint) => fetchJson('/notifications/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint }) }),
   },
   analytics: {
     summary: (start, end) => fetchJson(`/analytics/summary?start_date=${start || ''}&end_date=${end || ''}&t=${Date.now()}`),

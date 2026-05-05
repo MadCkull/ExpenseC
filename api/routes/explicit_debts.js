@@ -1,5 +1,6 @@
 import express from 'express';
 import db from '../database/db.js';
+import { sendPushToUser } from '../utils/pushService.js';
 
 const router = express.Router();
 
@@ -55,6 +56,14 @@ router.post('/update', async (req, res) => {
         sql: 'INSERT INTO explicit_debts (event_id, creditor_id, debtor_id, amount) VALUES (?, ?, ?, ?)',
         args: [activeEvent.id, creditor_id, debtor_id, parsedAmount]
       });
+
+      // Notify the debtor
+      sendPushToUser(debtor_id, {
+          title: '💰 Extra Debt Added',
+          body: `Someone added a £${parsedAmount.toFixed(2)} debt for you.`,
+          data: { url: '/' }
+      });
+
       return res.json({ success: true, action: 'created' });
     }
   } catch (error) {
