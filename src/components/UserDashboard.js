@@ -364,6 +364,17 @@ export function createUserDashboard({ role, onLogout }) {
           }
       }
 
+      // Get current user details for the central focus
+      const currentUserId = state.currentUserId;
+      const currentUserName = userStore.getName(currentUserId) || localStorage.getItem('expensec_user_name') || 'Me';
+      const currentUserAvatar = userStore.getAvatar(currentUserId);
+
+      let currentUserSpent = 0;
+      if (ev.expenses) {
+          const cuExp = ev.expenses.find(e => e.user_id == currentUserId);
+          if (cuExp) currentUserSpent = cuExp.amount || 0;
+      }
+
       return `
         <div id="summary-card-wrapper" class="mb-4" style="background: transparent; border-radius: 0; padding: 0;">
            <div id="summary-card-capture" class="ios-card fade-in" style="background: linear-gradient(145deg, rgba(10, 132, 255, 0.08), rgba(94, 92, 230, 0.06), rgba(0,0,0,0.3)); border: 1px solid rgba(10, 132, 255, 0.2); padding: 24px 20px; position: relative; overflow: hidden; border-radius: 24px;">
@@ -375,14 +386,28 @@ export function createUserDashboard({ role, onLogout }) {
               <i class="fa-solid fa-share-from-square text-[14px] text-white opacity-90" style="margin: 1px -2px 0 0;"></i>
            </button>
 
+           <!-- Date Range (Bottom Left) -->
+           <div id="summary-date-display" style="position: absolute; bottom: 26px; left: 20px; font-size: 10px; color: var(--ios-text-secondary); font-family: monospace; opacity: 0.7; z-index: 20; display: flex; align-items: center;">
+              ${uiDate(ev.start_date)} - ${uiDate(ev.end_date)}
+           </div>
+
            <!-- Top Header inside Card -->
            <div class="flex justify-between items-start mb-6">
-               <div class="flex flex-col">
-                  <div class="text-[14px] font-bold text-white mb-1 flex items-center gap-2">
-                     <i class="fa-solid fa-circle-check" style="font-size: 10px; color: #30D158;"></i>
-                     <span id="summary-title-text">${escapeHtml(ev.name)}</span>
-                  </div>
-                  <div class="text-[10px] text-secondary font-mono mt-1 opacity-70">${uiDate(ev.start_date)} - ${uiDate(ev.end_date)}</div>
+               <!-- Gandu Info (Top Left) -->
+               <div class="flex items-center gap-3" style="margin: -25px 0 0 -21px; padding: 6px 8px 6px 8px; border: 1px solid #ffd70040; border-top-right-radius: 0 !important; border-bottom-left-radius: 0 !important; border-radius: 24px; background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgb(115 114 32 / 8%));">
+                  ${ganduName ? `
+                     <div onclick="window.openFullAvatar('${ev.gandu_id}')" style="cursor: pointer; display: flex; flex-direction: column; align-items: center;">
+                        ${renderAvatar({ name: ganduName, avatar: ganduAvatar }, 36)}
+                        <span style="font-size: 10px; font-weight: 800; color: #ffffffc7; margin-top: 4px;">${escapeHtml(ganduName.split(' ')[0])}</span>
+                     </div>
+                     <div style="display: flex; flex-direction: column; justify-content: center;">
+                        <span style="font-size: 11px; font-weight: 900; color: #ffd60ac7; text-transform: uppercase; letter-spacing: 0.5px; text-shadow: 0 2px 8px rgba(255, 214, 10, 0.2); margin-top: -6px;">
+                           Gandu of the week
+                        </span>
+                     </div>
+                  ` : `
+                     <div class="text-xs font-bold text-secondary">No Gandu</div>
+                  `}
                </div>
                
                <button id="summary-settlements-btn" class="suggestions-pill" style="position: static; margin: 0; padding: 6px 12px; font-size: 10px; color: var(--ios-blue); background: rgba(10, 132, 255, 0.1); border: 1px solid rgba(10, 132, 255, 0.3);">
@@ -390,25 +415,24 @@ export function createUserDashboard({ role, onLogout }) {
                </button>
            </div>
 
-           <!-- Central Gandu Display (Semi-card) -->
+           <!-- Central Focus (Current Logged In User) -->
            <div class="text-center flex flex-col items-center mb-6">
-              ${ganduName ? `
-                  <div class="gandu-semi-card" style="background: rgba(255, 214, 10, 0.05); border: 1px dashed rgba(255, 214, 10, 0.2); border-radius: 20px; padding: 16px 24px; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 200px; box-shadow: inset 0 0 20px rgba(255, 214, 10, 0.02);">
-                     <div class="gandu-title" style="color: #FFD60A; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; text-shadow: 0 0 10px rgba(255, 214, 10, 0.3);">
-                        <i class="fa-solid fa-crown text-[12px]"></i> Gandu of the Week
-                     </div>
-                     <div onclick="window.openFullAvatar('${ev.gandu_id}')" style="cursor: pointer;">
-                        ${renderAvatar({ name: ganduName, avatar: ganduAvatar }, 72)}
-                     </div>
-                     <div class="text-xl font-black mt-3" style="color: #FFD60A; letter-spacing: -0.5px; text-shadow: 0 2px 8px rgba(255, 214, 10, 0.2);">${escapeHtml(ganduName)}</div>
-                  </div>
-              ` : `
-                  <div class="text-lg font-bold text-white mb-1">No Gandu</div>
-              `}
+               <div onclick="window.openFullAvatar('${currentUserId}')" style="cursor: pointer;">
+                  ${renderAvatar({ name: currentUserName, avatar: currentUserAvatar }, 72)}
+               </div>
+               <div class="text-xl font-bold mt-3 text-white">${escapeHtml(currentUserName)}</div>
+               <div class="text-sm font-bold mt-1" style="color: #30D158; background: rgba(48, 209, 88, 0.1); border-radius: 10px; padding: 4px 9px 5px 9px;">Total Spent: £${currentUserSpent.toFixed(2)}</div>
+           </div>
+
+           <!-- Event Name above Stats -->
+           <div class="text-center">
+               <span id="summary-title-text" class="text-[14px] font-bold text-white flex justify-center items-center gap-2">
+                   <span style="color: #b4b4b4c7; background: rgba(0, 0, 0, 0.2); border-radius: 10px 10px 0 0; padding: 4px 9px 5px 9px;">${escapeHtml(ev.name)}</span>
+               </span>
            </div>
 
            <!-- Stats Row -->
-           <div class="flex justify-between" style="background: rgba(0,0,0,0.2); border-radius: 14px; padding: 12px 16px;">
+           <div class="flex justify-between mb-4" style="background: rgba(0,0,0,0.2); border-radius: 14px; padding: 12px 16px;">
               <div class="text-center" style="flex: 1;">
                  <div class="text-[10px] text-secondary uppercase tracking-wider font-bold" style="opacity: 0.5;">Total</div>
                  <div class="text-sm font-bold text-white mt-1">£${total.toFixed(2)}</div>
@@ -426,6 +450,9 @@ export function createUserDashboard({ role, onLogout }) {
            </div>
 
            ${userSettlementsHtml}
+           
+           <!-- Extra padding at the bottom so elements don't overlap date/share buttons -->
+           <div style="height: 20px;"></div>
            </div>
         </div>
       `;
@@ -460,44 +487,24 @@ export function createUserDashboard({ role, onLogout }) {
                   clonedCard.classList.remove('fade-in');
                   clonedCard.style.opacity = '1';
 
-                  // 3. Fix Washed Out Colors: Apply opaque background equivalent to original transparent gradient over #1c1c1e
+                  // 3. Move Date Range to bottom right
+                  const clonedDate = clonedCard.querySelector('#summary-date-display');
+                  if (clonedDate) {
+                      clonedDate.style.left = 'auto';
+                      clonedDate.style.right = '24px';
+                  }
+
+                  // 4. Hide settlements pill for clean share
+                  const clonedSettlementsBtn = clonedCard.querySelector('#summary-settlements-btn');
+                  if (clonedSettlementsBtn) clonedSettlementsBtn.style.display = 'none';
+
+                  // 5. Hide the completion tick
+                  const tick = clonedCard.querySelector('.fa-circle-check');
+                  if (tick) tick.style.display = 'none';
+
+                  // 6. Fix Washed Out Colors: Apply opaque background equivalent to original transparent gradient over #1c1c1e
                   clonedCard.style.background = 'linear-gradient(145deg, #1f222e, #201e2c, #131315)';
                   clonedCard.style.borderRadius = '24px'; // Ensure radius is preserved explicitly
-
-                  // 4. Fix Gandu text/shadows causing scattered pixels or annoying blocks
-                  const ganduCard = clonedCard.querySelector('.gandu-semi-card');
-                  if (ganduCard) ganduCard.style.boxShadow = 'none';
-                  
-                  const ganduTitle = clonedCard.querySelector('.gandu-title');
-                  if (ganduTitle) {
-                      ganduTitle.style.textShadow = 'none';
-                      ganduTitle.style.letterSpacing = 'normal';
-                  }
-
-                  // 5. Replace Event Name with Current User Name
-                  const titleEl = clonedCard.querySelector('#summary-title-text');
-                  if (titleEl && state.currentUserId) {
-                      const name = userStore.getName(state.currentUserId) || localStorage.getItem('expensec_user_name') || 'Me';
-                      titleEl.innerHTML = escapeHtml(name);
-                      
-                      const tickIcon = titleEl.previousElementSibling;
-                      if (tickIcon && tickIcon.classList.contains('fa-circle-check')) {
-                          tickIcon.style.display = 'none';
-                      }
-                  }
-
-                  // 6. Replace Settlements pill with Total Spent
-                  const pillBtn = clonedCard.querySelector('#summary-settlements-btn');
-                  if (pillBtn && state.currentUserId && state.lastEvent?.expenses) {
-                      const myExp = state.lastEvent.expenses.find(e => e.user_id == state.currentUserId);
-                      const spent = myExp ? Number(myExp.amount || 0) : 0;
-                      pillBtn.innerHTML = `£${spent.toFixed(2)}`;
-                      pillBtn.style.background = 'rgba(48, 209, 88, 0.15)';
-                      pillBtn.style.color = '#30D158';
-                      pillBtn.style.border = '1px solid rgba(48, 209, 88, 0.3)';
-                      pillBtn.style.fontSize = '12px';
-                      pillBtn.style.padding = '8px 16px';
-                  }
 
                   // 7. Force body to transparent so the corners don't pick up the app's dark background
                   clonedDoc.body.style.background = 'transparent';
