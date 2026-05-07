@@ -187,7 +187,7 @@ router.post('/update', async (req, res) => {
           await autoArchiveEvent(activeEvent.id);
           // Send push notification to all participants
           sendPushToEvent(activeEvent.id, {
-              title: 'All Expenses In!',
+              title: 'Expenses In!',
               body: `${activeEvent.name} is complete. Check your summary!`,
               data: { url: '/' }
           });

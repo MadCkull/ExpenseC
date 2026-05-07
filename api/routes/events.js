@@ -90,8 +90,8 @@ router.post('/start', async (req, res) => {
 
     // Send push notification to all participants (fire and forget)
     sendPushToEvent(eventId, {
-        title: '🟢 New Event Started!',
-        body: `"${name}" — Time to track expenses!`,
+        title: 'Event Started!',
+        body: `"${name}" - Time to track expenses!`,
         data: { url: '/' }
     });
   } catch (error) {
@@ -286,7 +286,7 @@ router.post('/reopen', async (req, res) => {
 
      // Notify participants
      sendPushToEvent(id, {
-         title: '🔄 Event Reopened!',
+         title: 'Event Reopened!',
          body: 'An event has been reopened. You may need to update your expenses.',
          data: { url: '/' }
      });

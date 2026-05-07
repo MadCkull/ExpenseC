@@ -59,7 +59,7 @@ router.post('/update', async (req, res) => {
 
       // Notify the debtor
       sendPushToUser(debtor_id, {
-          title: '💰 Extra Debt Added',
+          title: 'Extra Debt Added',
           body: `Someone added a £${parsedAmount.toFixed(2)} debt for you.`,
           data: { url: '/' }
       });
