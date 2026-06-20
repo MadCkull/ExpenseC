@@ -1,21 +1,21 @@
 // 1. Load environment variables FIRST (must be first import)
-import './env.js';
+import '../server/env.js';
 
 // 2. Now import everything else
 import express from 'express';
 import cors from 'cors';
-import { initDB } from './database/db.js';
+import { initDB } from '../server/database/db.js';
 
 // Routes
-import authRoutes from './routes/auth.js';
-import userRoutes from './routes/users.js';
-import expenseRoutes from './routes/expenses.js';
-import eventsRoutes from './routes/events.js';
-import settingsRoutes from './routes/settings.js';
-import analyticsRoutes from './routes/analytics.js';
-import jokersRoutes from './routes/gandus.js';
-import explicitDebtsRoutes from './routes/explicit_debts.js';
-import notificationsRoutes from './routes/notifications.js';
+import authRoutes from '../server/routes/auth.js';
+import userRoutes from '../server/routes/users.js';
+import expenseRoutes from '../server/routes/expenses.js';
+import eventsRoutes from '../server/routes/events.js';
+import settingsRoutes from '../server/routes/settings.js';
+import analyticsRoutes from '../server/routes/analytics.js';
+import jokersRoutes from '../server/routes/gandus.js';
+import explicitDebtsRoutes from '../server/routes/explicit_debts.js';
+import notificationsRoutes from '../server/routes/notifications.js';
 
 const app = express();
 
