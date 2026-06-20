@@ -14,6 +14,54 @@ injectSpeedInsights();
 
 const app = document.querySelector('#app');
 
+const isPwa = () =>
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true ||
+    document.referrer.includes('android-app://');
+
+const showForcefulInstallModal = () => {
+    if (document.getElementById('forceful-install-modal')) return;
+    const modal = document.createElement('div');
+    modal.id = 'forceful-install-modal';
+    modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); z-index:9999; display:flex; align-items:center; justify-content:center; padding: 24px;';
+    modal.innerHTML = `
+      <div class="ios-card w-full fade-in" style="max-width: 360px; padding: 0; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
+        <div style="background: linear-gradient(135deg, rgba(10,132,255,0.2), rgba(0,0,0,0)); padding: 32px 28px 24px; text-align: center;">
+          <div style="width: 72px; height: 72px; border-radius: 20px; background: linear-gradient(135deg, #FF453A, #FF375F); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; box-shadow: 0 8px 32px rgba(255,69,58,0.4);">
+            <i class="fa-solid fa-triangle-exclamation" style="font-size: 32px; color: white;"></i>
+          </div>
+          <h2 style="font-size: 20px; font-weight: 800; color: white; margin-bottom: 10px; letter-spacing: -0.3px;">Action Required</h2>
+          <p style="font-size: 15px; font-weight: 600; color: var(--ios-text-primary); line-height: 1.6; margin-bottom: 0;">Install the app and enable notifications. Yes, both. Stop looking for a skip button.</p>
+        </div>
+        <div style="padding: 8px 20px 28px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
+            <i class="fa-brands fa-apple" style="font-size: 22px; color: white; width: 24px; text-align: center;"></i>
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: white;">iOS / iPadOS</div>
+              <div style="font-size: 11px; color: var(--ios-text-secondary); margin-top: 2px;">Safari → Share → <em>Add to Home Screen</em></div>
+            </div>
+          </div>
+          <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
+            <i class="fa-brands fa-android" style="font-size: 22px; color: #3DDC84; width: 24px; text-align: center;"></i>
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: white;">Android</div>
+              <div style="font-size: 11px; color: var(--ios-text-secondary); margin-top: 2px;">Chrome → Menu → <em>Add to Home Screen</em></div>
+            </div>
+          </div>
+          <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
+            <i class="fa-brands fa-windows" style="font-size: 22px; color: #0078d4; width: 24px; text-align: center;"></i>
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: white;">Windows</div>
+              <div style="font-size: 11px; color: var(--ios-text-secondary); margin-top: 2px;">Edge / Chrome → Install button in address bar</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.body.classList.add('modal-open');
+};
+
 // Global Avatar Viewer
 window.openFullAvatar = async (userId) => {
     if (!userId) return;
@@ -119,6 +167,13 @@ function navigateTo(view, params = {}) {
             navigateTo('dashboard', { role });
         }
      }));
+  }
+
+  // Forceful install popup check for any page after lockscreen
+  if (view !== 'lock') {
+      if (!isPwa() && (!('Notification' in window) || Notification.permission !== 'granted')) {
+          showForcefulInstallModal();
+      }
   }
 }
 

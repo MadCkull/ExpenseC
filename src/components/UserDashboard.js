@@ -109,53 +109,7 @@ export function createUserDashboard({ role, onLogout }) {
     window.navigator.standalone === true ||
     document.referrer.includes('android-app://');
 
-  const showInstallRequiredModal = () => {
-    if (document.getElementById('pwa-required-modal')) return;
-    const modal = document.createElement('div');
-    modal.id = 'pwa-required-modal';
-    modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); z-index:9999; display:flex; align-items:center; justify-content:center; padding: 24px;';
-    modal.innerHTML = `
-      <div class="ios-card w-full fade-in" style="max-width: 360px; padding: 0; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
-        <div style="background: linear-gradient(135deg, rgba(10,132,255,0.2), rgba(0,0,0,0)); padding: 32px 28px 24px; text-align: center;">
-          <div style="width: 72px; height: 72px; border-radius: 20px; background: linear-gradient(135deg, #0A84FF, #5E5CE6); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; box-shadow: 0 8px 32px rgba(10,132,255,0.4);">
-            <i class="fa-solid fa-mobile-screen-button" style="font-size: 32px; color: white;"></i>
-          </div>
-          <h2 style="font-size: 20px; font-weight: 800; color: white; margin-bottom: 10px; letter-spacing: -0.3px;">App Install Required</h2>
-          <p style="font-size: 14px; color: var(--ios-text-secondary); line-height: 1.6; margin-bottom: 0;">History &amp; Analytics are only available in the installed app on <strong style="color: var(--ios-text-primary);">iOS</strong>, <strong style="color: var(--ios-text-primary);">Android</strong>, or <strong style="color: var(--ios-text-primary);">Windows</strong>.</p>
-        </div>
-        <div style="padding: 8px 20px 28px; display: flex; flex-direction: column; gap: 10px;">
-          <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
-            <i class="fa-brands fa-apple" style="font-size: 22px; color: white; width: 24px; text-align: center;"></i>
-            <div>
-              <div style="font-size: 13px; font-weight: 700; color: white;">iOS / iPadOS</div>
-              <div style="font-size: 11px; color: var(--ios-text-secondary); margin-top: 2px;">Safari → Share → <em>Add to Home Screen</em></div>
-            </div>
-          </div>
-          <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
-            <i class="fa-brands fa-android" style="font-size: 22px; color: #3DDC84; width: 24px; text-align: center;"></i>
-            <div>
-              <div style="font-size: 13px; font-weight: 700; color: white;">Android</div>
-              <div style="font-size: 11px; color: var(--ios-text-secondary); margin-top: 2px;">Chrome → Menu → <em>Add to Home Screen</em></div>
-            </div>
-          </div>
-          <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
-            <i class="fa-brands fa-windows" style="font-size: 22px; color: #0078d4; width: 24px; text-align: center;"></i>
-            <div>
-              <div style="font-size: 13px; font-weight: 700; color: white;">Windows</div>
-              <div style="font-size: 11px; color: var(--ios-text-secondary); margin-top: 2px;">Edge / Chrome → Install button in address bar</div>
-            </div>
-          </div>
-          <button id="close-pwa-modal" style="margin-top: 4px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; color: white; font-size: 15px; font-weight: 600; padding: 14px; cursor: pointer; width: 100%; transition: opacity 0.2s;">Got it</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-    document.body.classList.add('modal-open');
-    modal.querySelector('#close-pwa-modal').addEventListener('click', () => {
-       modal.remove();
-       document.body.classList.remove('modal-open');
-    });
-  };
+
 
   const render = () => {
     if (_destroyed) return;
@@ -350,16 +304,9 @@ export function createUserDashboard({ role, onLogout }) {
                  <div style="height: 1px; background: rgba(255,255,255,0.06); margin: 20px 0 16px 0;"></div>
                  <div class="text-[10px] text-secondary uppercase tracking-wider font-bold mb-3 text-center" style="opacity: 0.7;">Your Settlements</div>
                  
-                 ${isPwa() ? `
                      <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; justify-content: center; scrollbar-width: none; -webkit-overflow-scrolling: touch;">
                         ${itemsHtml}
                      </div>
-                 ` : `
-                     <div id="summary-install-prompt" class="text-center py-4 cursor-pointer transition-opacity hover:opacity-80">
-                        <i class="fa-solid fa-download text-blue mb-2 text-lg" style="background: rgba(10, 132, 255, 0.1); border-radius: 12px; border: 1px dashed rgba(10, 132, 255, 0.3); padding: 9px"></i>
-                        <div class="text-xs font-bold text-blue">Install App to view your settlements</div>
-                     </div>
-                 `}
               `;
           }
       }
@@ -630,11 +577,9 @@ export function createUserDashboard({ role, onLogout }) {
     });
     container.querySelector('#current-username')?.addEventListener('click', showIdentificationModal);
     container.querySelector('#history-btn')?.addEventListener('click', () => {
-         if (!isPwa()) { showInstallRequiredModal(); return; }
          window.dispatchEvent(new CustomEvent('navigate', { detail: 'history' }));
     });
     container.querySelector('#analytics-btn')?.addEventListener('click', () => {
-         if (!isPwa()) { showInstallRequiredModal(); return; }
          window.dispatchEvent(new CustomEvent('navigate', { detail: 'analytics' }));
     });
     container.querySelector('#gandu-btn')?.addEventListener('click', showGanduModal);
@@ -648,9 +593,7 @@ export function createUserDashboard({ role, onLogout }) {
         });
     });
 
-    // Summary card buttons
     container.querySelector('#summary-settlements-btn')?.addEventListener('click', () => {
-        if (!isPwa()) { showInstallRequiredModal(); return; }
         const ev = state.lastEvent;
         if (!ev?.settlements_json) return;
         const settlements = JSON.parse(ev.settlements_json);
@@ -662,8 +605,6 @@ export function createUserDashboard({ role, onLogout }) {
     });
 
     container.querySelector('#share-summary-btn')?.addEventListener('click', shareSummaryCard);
-    
-    container.querySelector('#summary-install-prompt')?.addEventListener('click', showInstallRequiredModal);
 
     // Make collaborator rows clickable to add explicit debts
     if (state.active) {
