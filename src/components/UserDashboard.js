@@ -44,60 +44,11 @@ export function createUserDashboard({ role, onLogout }) {
     unsubscribe();
   };
 
-  // --- Passive-Aggressive Meteorology ---
-  let rainInterval;
-  const startRain = () => {
-      if (document.getElementById('rain-style')) return;
-      
-      const style = document.createElement('style');
-      style.id = 'rain-style';
-      style.innerHTML = `
-      .rain-word {
-        position: fixed;
-        top: -50px;
-        font-size: 14px;
-        color: rgba(255, 255, 255, 0.4);
-        pointer-events: none;
-        animation: fall linear forwards;
-        user-select: none;
-        z-index: 9999;
-        font-weight: bold;
-      }
-      @keyframes fall {
-        to { transform: translateY(110vh); }
-      }
-      `;
-      document.head.appendChild(style);
-
-      rainInterval = setInterval(() => {
-          if (Notification.permission === 'granted') {
-              clearInterval(rainInterval);
-              location.reload();
-              return;
-          }
-          if (Notification.permission !== 'denied') return;
-
-          const el = document.createElement('div');
-          el.className = 'rain-word';
-          el.textContent = 'Allow Notifications!';
-          
-          el.style.left = Math.random() * 100 + 'vw';
-          el.style.animationDuration = (3 + Math.random() * 4) + 's';
-
-          document.body.appendChild(el);
-          setTimeout(() => el.remove(), 7000);
-      }, 300);
-  };
-
   const checkNotificationStatus = () => {
       if (!isPushSupported() || !state.currentUserId) return;
-      if (Notification.permission === 'denied') {
-          startRain();
-      } else if (Notification.permission === 'default') {
+      if (Notification.permission === 'default') {
           // Attempt to prompt. Will work if dashboard load was part of a user gesture (e.g. from lock screen)
-          subscribeToPush(state.currentUserId).then(() => {
-              if (Notification.permission === 'denied') startRain();
-          });
+          subscribeToPush(state.currentUserId);
       }
   };
 
