@@ -37,6 +37,8 @@ export const api = {
   expenses: {
     current: () => fetchJson('/expenses/current'),
     update: (user_id, amount) => fetchJson('/expenses/update', { method: 'POST', body: JSON.stringify({ user_id, amount }) }),
+    add: (user_id, amount) => fetchJson('/expenses/add', { method: 'POST', body: JSON.stringify({ user_id, amount }) }),
+    history: (event_id, user_id) => fetchJson(`/expenses/history/${event_id}/${user_id}`),
   },
   events: {
     history: () => fetchJson(`/events/history?t=${Date.now()}`),

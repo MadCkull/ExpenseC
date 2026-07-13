@@ -144,6 +144,19 @@ export async function initDB() {
     `);
 
     await db.execute(`
+      CREATE TABLE IF NOT EXISTS expense_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        amount_added REAL NOT NULL,
+        action_type TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+    `);
+
+    await db.execute(`
       CREATE TABLE IF NOT EXISTS push_subscriptions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,

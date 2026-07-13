@@ -152,6 +152,13 @@ router.post('/update', async (req, res) => {
         args: [amount, existing.id]
       });
 
+      if (amount !== null) {
+        await db.execute({
+          sql: 'INSERT INTO expense_history (event_id, user_id, amount_added, action_type) VALUES (?, ?, ?, ?)',
+          args: [activeEvent.id, user_id, amount, 'set']
+        });
+      }
+
       // Gandu + auto-archive check
       const allExpensesResult = await db.execute({
         sql: 'SELECT user_id, amount FROM expenses WHERE event_id = ?',
@@ -197,9 +204,106 @@ router.post('/update', async (req, res) => {
         sql: 'INSERT INTO expenses (event_id, user_id, amount) VALUES (?, ?, ?)',
         args: [activeEvent.id, user_id, amount]
       });
+      if (amount !== null) {
+        await db.execute({
+          sql: 'INSERT INTO expense_history (event_id, user_id, amount_added, action_type) VALUES (?, ?, ?, ?)',
+          args: [activeEvent.id, user_id, amount, 'set']
+        });
+      }
     }
     
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add to existing expense for ACTIVE event
+router.post('/add', async (req, res) => {
+  try {
+    const { user_id, amount } = req.body;
+    if (amount === null || isNaN(amount)) return res.status(400).json({ error: "Invalid amount" });
+    
+    const eventResult = await db.execute('SELECT id, name FROM events WHERE is_active = 1 ORDER BY id DESC LIMIT 1');
+    const activeEvent = eventResult.rows[0];
+    if (!activeEvent) return res.status(400).json({ error: "No active event" });
+
+    const existingResult = await db.execute({
+      sql: 'SELECT id, amount FROM expenses WHERE user_id = ? AND event_id = ?',
+      args: [user_id, activeEvent.id]
+    });
+    const existing = existingResult.rows[0];
+    
+    let newAmount = amount;
+
+    if (existing) {
+      newAmount = (existing.amount || 0) + amount;
+      await db.execute({
+        sql: 'UPDATE expenses SET amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        args: [newAmount, existing.id]
+      });
+    } else {
+      await db.execute({
+        sql: 'INSERT INTO expenses (event_id, user_id, amount) VALUES (?, ?, ?)',
+        args: [activeEvent.id, user_id, newAmount]
+      });
+    }
+
+    await db.execute({
+      sql: 'INSERT INTO expense_history (event_id, user_id, amount_added, action_type) VALUES (?, ?, ?, ?)',
+      args: [activeEvent.id, user_id, amount, 'add']
+    });
+
+    // We also need to check auto-archive logic here in case they were the last person (null -> amount)
+    const allExpensesResult = await db.execute({
+      sql: 'SELECT user_id, amount FROM expenses WHERE event_id = ?',
+      args: [activeEvent.id]
+    });
+    const remainingUsers = allExpensesResult.rows.filter(e => e.amount === null);
+
+    if (remainingUsers.length === 1) {
+        const identifiedGanduId = remainingUsers[0].user_id;
+        const eventDetail = await db.execute({
+          sql: 'SELECT gandu_id FROM events WHERE id = ?',
+          args: [activeEvent.id]
+        });
+        if (eventDetail.rows[0] && eventDetail.rows[0].gandu_id === null) {
+            await db.execute({
+              sql: 'UPDATE events SET gandu_id = ? WHERE id = ?',
+              args: [identifiedGanduId, activeEvent.id]
+            });
+            sendPushToUser(identifiedGanduId, {
+                title: 'Hey Gandu!',
+                body: 'Please add your Expenses...',
+                data: { url: '/' }
+            });
+        }
+    }
+
+    if (remainingUsers.length === 0) {
+        await autoArchiveEvent(activeEvent.id);
+        sendPushToEvent(activeEvent.id, {
+            title: 'Expenses In!',
+            body: `${activeEvent.name} is complete. Check your summary!`,
+            data: { url: '/' }
+        });
+    }
+    
+    res.json({ success: true, newAmount });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get expense history for a user in an event
+router.get('/history/:eventId/:userId', async (req, res) => {
+  try {
+    const { eventId, userId } = req.params;
+    const historyResult = await db.execute({
+      sql: 'SELECT * FROM expense_history WHERE event_id = ? AND user_id = ? ORDER BY created_at DESC',
+      args: [eventId, userId]
+    });
+    res.json({ history: historyResult.rows });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

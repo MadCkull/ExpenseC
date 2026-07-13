@@ -456,17 +456,31 @@ export function createUserDashboard({ role, onLogout }) {
                     <div class="text-xs text-secondary">${hasEntered ? 'Saved' : 'Enter amount spent'}</div>
                  </div>
               </div>
-              <div style="position: relative;">
-                 <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ios-text-secondary); font-weight: bold;">£</span>
-                 <input type="number" 
-                        inputmode="decimal"
-                        placeholder="0.00" 
-                        value="${hasEntered ? user.amount : ''}" 
-                        class="ios-input expense-input" 
-                        data-userid="${user.user_id}"
-                        style="width: 120px; font-size: 24px; font-weight: bold; padding: 12px 12px 12px 28px; background: rgba(0,0,0,0.3); border-radius: 12px; text-align: right;"
-                        ${!state.active ? 'disabled' : ''}
-                 >
+              <div class="flex items-center gap-sm">
+                 <div style="position: relative; display: flex; align-items: center;">
+                    <div id="expense-preview-pill" style="position: absolute; top: -35px; right: 0; background: rgba(10, 132, 255, 0.15); border: 1px solid rgba(10, 132, 255, 0.4); color: #0A84FF; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap; opacity: 0; transform: translateY(10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10;">
+                       <!-- dynamic -->
+                    </div>
+                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ios-text-secondary); font-weight: bold;">£</span>
+                    <input type="number" 
+                           id="current-user-expense-input"
+                           inputmode="decimal"
+                           placeholder="0.00" 
+                           value="${hasEntered ? user.amount : ''}" 
+                           data-original="${hasEntered ? user.amount : 0}"
+                           class="ios-input expense-input-hero" 
+                           data-userid="${user.user_id}"
+                           style="width: 140px; font-size: 20px; font-weight: bold; padding: 12px 64px 12px 28px; background: rgba(0,0,0,0.3); border-radius: 12px; text-align: left;"
+                           ${!state.active ? 'disabled' : ''}
+                    >
+                    <div style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; pointer-events: none;" id="expense-actions-overlay">
+                       <button id="expense-add-btn" style="width: 26px; height: 26px; border-radius: 8px; border: none; background: #30D158; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; pointer-events: auto;" title="Add to total"><i class="fa-solid fa-plus" style="font-size: 12px;"></i></button>
+                       <button id="expense-set-btn" style="width: 26px; height: 26px; border-radius: 8px; border: none; background: #0A84FF; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; pointer-events: auto;" title="Set total"><i class="fa-solid fa-check" style="font-size: 12px;"></i></button>
+                    </div>
+                 </div>
+                 <button id="expense-history-btn" data-userid="${user.user_id}" style="width: 32px; height: 32px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--ios-text-secondary); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                 </button>
               </div>
            </div>
            ${debtsToMe.length > 0 ? `
@@ -587,49 +601,206 @@ export function createUserDashboard({ role, onLogout }) {
        });
     }
 
-    container.querySelectorAll('.expense-input').forEach(input => {
-      input.addEventListener('change', async (e) => {
-        const userId = e.target.dataset.userid;
-        const val = e.target.value;
-        const amount = val === '' ? null : parseFloat(val); 
-        
-        // Allow clearing (null) or setting a valid number
-        if (amount === null || !isNaN(amount)) {
-          // Optimistic update: update state immediately, re-render, then sync
-          const prevExpenses = [...state.expenses];
-          const prevStats = { ...state.stats };
+    const heroInput = container.querySelector('#current-user-expense-input');
+    const actionsOverlay = container.querySelector('#expense-actions-overlay');
+    const addBtn = container.querySelector('#expense-add-btn');
+    const setBtn = container.querySelector('#expense-set-btn');
+    const historyBtn = container.querySelector('#expense-history-btn');
+    const previewPill = container.querySelector('#expense-preview-pill');
 
-          // Update local state
-          const idx = state.expenses.findIndex(u => u.user_id == userId);
-          if (idx !== -1) {
-            state.expenses[idx] = { ...state.expenses[idx], amount };
-          }
-          recalcStats();
-          render(); // Instant UI update
+    if (heroInput) {
+        heroInput.addEventListener('input', (e) => {
+            const val = e.target.value;
+            const original = parseFloat(e.target.dataset.original) || 0;
+            const typed = parseFloat(val);
 
-          try { 
-            await api.expenses.update(userId, amount);
-            // Update cache with new state
-            cache.set(CACHE_KEYS.CURRENT_EXPENSES, {
-              expenses: state.expenses,
-              explicitDebts: state.explicitDebts,
-              stats: state.stats,
-              event: state.event,
-              active: state.active
-            });
-            // Background refresh to get server-calculated values
-            loadData(true);
-          } catch (err) { 
-            console.error(err); 
-            // Revert on failure
-            state.expenses = prevExpenses;
-            state.stats = prevStats;
-            render();
-            alert("Failed to save expense. Reverted.");
-          }
-        }
+            if (val !== '') {
+                actionsOverlay.style.opacity = '1';
+                actionsOverlay.style.pointerEvents = 'auto';
+                
+                if (!isNaN(typed)) {
+                    previewPill.style.opacity = '1';
+                    previewPill.style.transform = 'translateY(0)';
+                    const future = original + typed;
+                    previewPill.innerHTML = `£${original.toFixed(2)} + £${typed.toFixed(2)} = <strong>£${future.toFixed(2)}</strong>`;
+                } else {
+                    previewPill.style.opacity = '0';
+                    previewPill.style.transform = 'translateY(10px)';
+                }
+            } else {
+                actionsOverlay.style.opacity = '0';
+                actionsOverlay.style.pointerEvents = 'none';
+                previewPill.style.opacity = '0';
+                previewPill.style.transform = 'translateY(10px)';
+            }
+        });
+
+        heroInput.addEventListener('focus', () => {
+            heroInput.select();
+        });
+
+        // Hide UI on blur if clicking outside completely (delay to allow button clicks)
+        heroInput.addEventListener('blur', (e) => {
+            setTimeout(() => {
+                if (actionsOverlay) actionsOverlay.style.opacity = '0';
+                if (actionsOverlay) actionsOverlay.style.pointerEvents = 'none';
+                if (previewPill) previewPill.style.opacity = '0';
+                if (previewPill) previewPill.style.transform = 'translateY(10px)';
+                
+                // If they typed something but blurred without clicking, we can auto-save (set)
+                if (heroInput.value !== '' && parseFloat(heroInput.value) !== parseFloat(heroInput.dataset.original)) {
+                   setBtn.click();
+                } else {
+                   heroInput.value = heroInput.dataset.original > 0 ? heroInput.dataset.original : '';
+                }
+            }, 200);
+        });
+
+        const saveExpense = async (isAdd) => {
+            const userId = heroInput.dataset.userid;
+            const val = heroInput.value;
+            const amount = val === '' ? null : parseFloat(val); 
+            
+            if (amount === null || isNaN(amount)) {
+                // If clearing
+                if (!isAdd) {
+                    try {
+                        await api.expenses.update(userId, null);
+                        loadData(true);
+                    } catch(e) {}
+                }
+                return;
+            }
+
+            const prevExpenses = [...state.expenses];
+            try {
+                if (isAdd) {
+                    await api.expenses.add(userId, amount);
+                } else {
+                    await api.expenses.update(userId, amount);
+                }
+                
+                // Show success animation on the pill
+                if (previewPill) {
+                    previewPill.innerHTML = `<i class="fa-solid fa-check"></i> Saved`;
+                    previewPill.style.background = 'rgba(48, 209, 88, 0.15)';
+                    previewPill.style.borderColor = 'rgba(48, 209, 88, 0.4)';
+                    previewPill.style.color = '#30D158';
+                }
+                setTimeout(() => loadData(true), 300);
+            } catch (err) {
+                console.error(err);
+                state.expenses = prevExpenses;
+                render();
+                alert("Failed to save expense.");
+            }
+        };
+
+        if (addBtn) addBtn.addEventListener('click', () => saveExpense(true));
+        if (setBtn) setBtn.addEventListener('click', () => saveExpense(false));
+    }
+
+    if (historyBtn) {
+        historyBtn.addEventListener('click', async () => {
+            const userId = historyBtn.dataset.userid;
+            const user = state.expenses.find(u => u.user_id == userId);
+            if (user && state.event) {
+                showHistoryModal(state.event.id, userId, user.user_name);
+            }
+        });
+    }
+  };
+
+  const showHistoryModal = async (eventId, userId, userName) => {
+      if (document.getElementById('history-modal-root')) return;
+
+      const modal = document.createElement('div');
+      modal.id = 'history-modal-root';
+      modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:9999; display:flex; align-items:flex-end; justify-content:center; opacity:0; transition:opacity 0.3s;';
+      
+      modal.innerHTML = `
+        <div class="ios-card w-full safe-area-bottom" style="width: 100%; max-width: 500px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); padding: 0; background: var(--ios-card-bg); border-bottom-left-radius: 0; border-bottom-right-radius: 0; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+           <div class="flex justify-between items-center p-6 border-b border-white/5 relative">
+              <h3 class="text-xl font-bold m-0" style="background: linear-gradient(135deg, #fff, #aaa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Expense History</h3>
+              <button id="close-history-btn" style="width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.1); border: none; color: white; display:flex; align-items:center; justify-content:center; cursor: pointer;">
+                 <i class="fa-solid fa-xmark"></i>
+              </button>
+           </div>
+           <div class="p-6 overflow-y-auto" style="flex: 1;" id="history-content-container">
+              <div style="display:flex; justify-content:center; padding: 20px;">
+                 <i class="fa-solid fa-spinner fa-spin" style="font-size: 24px; color: var(--ios-text-secondary);"></i>
+              </div>
+           </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      // Trigger animations
+      requestAnimationFrame(() => {
+          modal.style.opacity = '1';
+          modal.querySelector('.ios-card').style.transform = 'translateY(0)';
       });
-    });
+
+      const close = () => {
+          modal.style.opacity = '0';
+          modal.querySelector('.ios-card').style.transform = 'translateY(100%)';
+          setTimeout(() => modal.remove(), 300);
+      };
+
+      modal.querySelector('#close-history-btn').addEventListener('click', close);
+      modal.addEventListener('click', (e) => { if(e.target === modal) close(); });
+
+      try {
+          const res = await api.expenses.history(eventId, userId);
+          const container = modal.querySelector('#history-content-container');
+          
+          if (!res.history || res.history.length === 0) {
+              container.innerHTML = `
+                  <div style="text-align:center; padding: 40px 20px; color: var(--ios-text-secondary);">
+                      <i class="fa-solid fa-clock-rotate-left" style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
+                      <p>No expense history yet.</p>
+                  </div>
+              `;
+              return;
+          }
+
+          const html = res.history.map(item => {
+              const isAdd = item.action_type === 'add';
+              const color = isAdd ? '#30D158' : '#0A84FF';
+              const icon = isAdd ? 'fa-plus' : 'fa-check';
+              const text = isAdd ? `Added £${item.amount_added.toFixed(2)}` : `Set to £${item.amount_added.toFixed(2)}`;
+              
+              const dateObj = new Date(item.created_at);
+              // Use nice date formatting, e.g. "Oct 12, 10:30 AM"
+              const dateStr = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + 
+                              dateObj.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+              return `
+                  <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <div style="width: 40px; height: 40px; border-radius: 50%; background: ${color}22; color: ${color}; display: flex; align-items: center; justify-content: center; font-size: 16px;">
+                          <i class="fa-solid ${icon}"></i>
+                      </div>
+                      <div style="flex: 1;">
+                          <div style="font-size: 16px; font-weight: 600;">${text}</div>
+                          <div style="font-size: 12px; color: var(--ios-text-secondary); margin-top: 4px;">${dateStr}</div>
+                      </div>
+                  </div>
+              `;
+          }).join('');
+
+          container.innerHTML = `
+              <div style="margin-bottom: 20px; font-size: 14px; color: var(--ios-text-secondary);">
+                  Showing history for <strong>${escapeHtml(userName)}</strong>
+              </div>
+              ${html}
+          `;
+      } catch (err) {
+          console.error(err);
+          modal.querySelector('#history-content-container').innerHTML = `
+              <div style="text-align:center; padding: 20px; color: #FF453A;">Failed to load history.</div>
+          `;
+      }
   };
 
   const showGanduModal = async () => {

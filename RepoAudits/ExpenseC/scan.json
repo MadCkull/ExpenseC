@@ -1,0 +1,245 @@
+{
+  "repo_path": "D:\\Other\\Projects\\ExpenseC",
+  "repo_name": "ExpenseC",
+  "file_count": 69,
+  "file_tree_truncated": false,
+  "file_tree": [
+    ".env.local",
+    ".gitattributes",
+    ".gitignore",
+    "check-env.js",
+    "index.html",
+    "local.db",
+    "package-lock.json",
+    "package.json",
+    "PORTS.md",
+    "README.md",
+    "SETUP.md",
+    "vercel.json",
+    "vite.config.js",
+    "WHY-TWO-SERVERS.md",
+    "api\\index.js",
+    "dev-dist\\registerSW.js",
+    "dev-dist\\sw.js",
+    "dev-dist\\workbox-5a5d9309.js",
+    "dev-dist\\workbox-8839f217.js",
+    "public\\ExpenseC-180.png",
+    "public\\ExpenseC-192.png",
+    "public\\ExpenseC-512.png",
+    "public\\gandu.svg",
+    "public\\manifest.json",
+    "public\\push-sw.js",
+    "public\\pwa-192x192.png",
+    "public\\pwa-512x512.png",
+    "public\\vite.svg",
+    "scripts\\prestart.js",
+    "server\\env.js",
+    "server\\database\\db.js",
+    "server\\database\\seed.js",
+    "server\\routes\\analytics.js",
+    "server\\routes\\auth.js",
+    "server\\routes\\events.js",
+    "server\\routes\\expenses.js",
+    "server\\routes\\explicit_debts.js",
+    "server\\routes\\gandus.js",
+    "server\\routes\\notifications.js",
+    "server\\routes\\settings.js",
+    "server\\routes\\users.js",
+    "server\\utils\\dateUtils.js",
+    "server\\utils\\pushService.js",
+    "src\\counter.js",
+    "src\\javascript.svg",
+    "src\\main.js",
+    "src\\style.css",
+    "src\\components\\AdminDashboard.js",
+    "src\\components\\AnalyticsDashboard.js",
+    "src\\components\\EventHistory.js",
+    "src\\components\\ImageViewer.js",
+    "src\\components\\LockScreen.js",
+    "src\\components\\UserDashboard.js",
+    "src\\icons\\ExpenseC-180.png",
+    "src\\icons\\ExpenseC-192.png",
+    "src\\icons\\ExpenseC-256.png",
+    "src\\icons\\ExpenseC-512.png",
+    "src\\styles\\main.css",
+    "src\\styles\\variables.css",
+    "src\\utils\\api.js",
+    "src\\utils\\cache.js",
+    "src\\utils\\dateUtils.js",
+    "src\\utils\\image.js",
+    "src\\utils\\pullToRefresh.js",
+    "src\\utils\\pushManager.js",
+    "src\\utils\\settlements.js",
+    "src\\utils\\ui.js",
+    "src\\utils\\userStore.js",
+    "tests\\settlements.test.js"
+  ],
+  "docs": {
+    "README.md": {
+      "content": "# ExpenseC - Local Development Setup\n\n## Architecture Overview\n\n- **Single Git Repository** \u2705\n- **Single Turso Database** \u2705 (shared between local and production)\n- **Two Environments**: Local Dev & Vercel Production\n- **No data duplication or syncing**\n\n## Prerequisites\n\n1. Node.js installed\n2. Turso account with database created\n3. Vercel account (for production deployment)\n\n## Initial Setup\n\n### 1. Install Dependencies\n\n```bash\nnpm install\n```\n\n### 2. Configure Environment Variables\n\nCreate a `.env.local` file in the project root:\n\n```env\n# Turso Database Configuration\n# Get these values from your Vercel dashboard or Turso CLI\nTURSO_DATABASE_URL=libsql://your-database-name.turso.io\nTURSO_AUTH_TOKEN=your-auth-token-here\n\n# Local API URL for frontend development\nVITE_API_BASE_URL=http://localhost:3000\n```\n\n**\u26a0\ufe0f IMPORTANT**: Never commit `.env.local` to Git. It's already in `.gitignore`.\n\n### 3. Get Your Turso Credentials\n\n**Option A: From Vercel Dashboard**\n1. Go to your Vercel project settings\n2. Navigate to Environment Variables\n3. Copy `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`\n\n**Option B: From Turso CLI**\n```bash\nturso db show your-database-name\n```\n\n## Running Locally\n\n### Start Backend Server\n```bash\nnpm run server\n```\nBackend runs on `http://localhost:3000`\n\n### Start Frontend Dev Server\n```bash\nnpm run dev\n```\nFrontend runs on `http://localhost:5173` (or similar)\n\n## How It Works\n\n### Local Development Flow\n```\nFrontend (Vite) \u2192 http://localhost:3000/api \u2192 Backend (Express) \u2192 Turso DB (Cloud)\n```\n\n### Production Flow\n```\nFrontend (Vercel) \u2192 /api \u2192 Backend (Vercel Serverless) \u2192 Turso DB (Cloud)\n```\n\n**Same database, same data, different servers.**\n\n## Environment Variables Explained\n\n| Variable | Purpose | Where Used |\n|----------|---------|------------|\n| `TURSO_DATABASE_URL` | Turso connection string | Backend (local & production) |\n| `TURSO_AUTH_TOKEN` | Turso authentication | Backend (local & production) |\n| `VITE_API_BASE_URL` | API endpoint for frontend | Frontend (local only) |\n\n## Deployment\n\n### Push to GitHub\n```bash\ngit add .\ngit commit -m \"Your changes\"\ngit push\n```\n\n### Vercel Auto-Deploy\nVercel automatically:\n1. Detects the push\n2. Rebuilds the app\n3. Connects to the same Turso DB\n4. Deploys to production\n\n**Zero data drift. Zero manual syncing.**\n\n## Safety Best Practices\n\n### \u26a0\ufe0f You Are Using Production Data Locally\n\n**DO NOT:**\n- Run destructive migrations casually\n- Execute `DROP TABLE` commands\n- Test \"delete all\" features\n- Auto-seed fake data\n\n### \u2705 Recommended: Use Separate Databases\n\nCreate two Turso databases:\n- `expensec-prod` (production)\n- `expensec-dev` (development)\n\nSwitch between them using `.env.local`:\n\n```env\n# Development\nTURSO_DATABASE_URL=libsql://expensec-dev.turso.io\n\n# Production (in Vercel)\nTURSO_DATABASE_URL=libsql://expensec-prod.turso.io\n```\n\n## Troubleshooting\n\n### Backend won't connect to Turso\n- \u2705 Check credentials are correct\n- \u2705 Verify `dotenv` is installed\n- \u2705 Ensure `.env.local` is in project root\n- \u2705 Restart backend server after changing env vars\n\n### Frontend can't reach backend\n- \u2705 Check `VITE_API_BASE_URL` in `.env.local`\n- \u2705 Verify backend is running on port 3000\n- \u2705 Restart Vite dev server after changing env vars\n\n### \"Invalid PIN\" on login\n- \u2705 Database might be empty (first run)\n- \u2705 Check backend logs for initialization messages\n- \u2705 Default PINs: Admin `6869`, User `3595`\n\n## Project Structure\n\n```\nExpenseC/\n\u251c\u2500\u2500 api/                    # Backend (Express + Turso)\n\u2502   \u251c\u2500\u2500 database/\n\u2502   \u2502   \u2514\u2500\u2500 db.js          # Turso client setup\n\u2502   \u251c\u2500\u2500 routes/            # API endpoints\n\u2502   \u2514\u2500\u2500 index.js           # Express app entry\n\u251c\u2500\u2500 src/                   # Frontend (Vite)\n\u2502   \u251c\u2500\u2500 components/\n\u2502   \u251c\u2500\u2500 utils/\n\u2502   \u2502   \u2514\u2500\u2500 api.js         # API client (uses VITE_API_BASE_URL)\n\u2502   \u2514\u2500\u2500 main.js\n\u251c\u2500\u2500 .env.local             # Local environment variables (NOT committed)\n\u251c\u2500\u2500 .gitignore             # Protects secrets\n\u251c\u2500\u2500 package.json\n\u2514\u2500\u2500 vercel.json            # Vercel configuration\n```\n\n## Final Checklist\n\n- [ ] Backend runs locally\n- [ ] Backend connects to Turso using real credentials\n- [ ] Frontend points to local backend\n- [ ] Same DB credentials as Vercel\n- [ ] `.env.local` is ignored by Git\n- [ ] Can login with default PINs\n- [ ] Data persists between local and production\n\n---\n\n**You are now set up like a professional development team.** \ud83d\ude80\n",
+      "truncated": false
+    }
+  },
+  "dependency_manifests": {
+    "package.json": {
+      "content": "{\n  \"name\": \"expensec\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite --host\",\n    \"dev:all\": \"node scripts/prestart.js && concurrently \\\"npm run server\\\" \\\"npm run dev\\\" --names \\\"API,UI\\\" --prefix-colors \\\"blue,green\\\"\",\n    \"build\": \"vite build\",\n    \"preview\": \"vite preview\",\n    \"server\": \"node --watch api/index.js\",\n    \"check-env\": \"node check-env.js\",\n    \"test\": \"vitest run\"\n  },\n  \"dependencies\": {\n    \"@libsql/client\": \"^0.14.0\",\n    \"@vercel/speed-insights\": \"^1.3.1\",\n    \"bcryptjs\": \"^2.4.3\",\n    \"chart.js\": \"^4.5.1\",\n    \"cors\": \"^2.8.5\",\n    \"dotenv\": \"^16.4.5\",\n    \"express\": \"^4.18.2\",\n    \"flatpickr\": \"^4.6.13\",\n    \"html2canvas\": \"^1.4.1\",\n    \"sharp\": \"^0.34.5\",\n    \"web-push\": \"^3.6.7\"\n  },\n  \"devDependencies\": {\n    \"concurrently\": \"^9.2.1\",\n    \"vite\": \"^7.2.4\",\n    \"vite-plugin-pwa\": \"^1.2.0\",\n    \"vitest\": \"^4.1.5\",\n    \"workbox-window\": \"^7.4.0\"\n  }\n}\n",
+      "truncated": false
+    }
+  },
+  "config_signals": [
+    "vite.config.js",
+    "vercel.json"
+  ],
+  "candidate_key_files": [
+    {
+      "path": "dev-dist\\workbox-8839f217.js",
+      "size_bytes": 171595
+    },
+    {
+      "path": "dev-dist\\workbox-5a5d9309.js",
+      "size_bytes": 129478
+    },
+    {
+      "path": "src\\components\\UserDashboard.js",
+      "size_bytes": 57125
+    },
+    {
+      "path": "src\\components\\AdminDashboard.js",
+      "size_bytes": 33633
+    },
+    {
+      "path": "src\\components\\AnalyticsDashboard.js",
+      "size_bytes": 17252
+    },
+    {
+      "path": "server\\routes\\events.js",
+      "size_bytes": 10834
+    },
+    {
+      "path": "src\\utils\\settlements.js",
+      "size_bytes": 10337
+    },
+    {
+      "path": "src\\main.js",
+      "size_bytes": 9581
+    },
+    {
+      "path": "server\\routes\\expenses.js",
+      "size_bytes": 7985
+    },
+    {
+      "path": "src\\components\\EventHistory.js",
+      "size_bytes": 7006
+    },
+    {
+      "path": "server\\database\\db.js",
+      "size_bytes": 6683
+    },
+    {
+      "path": "src\\utils\\userStore.js",
+      "size_bytes": 5702
+    },
+    {
+      "path": "src\\components\\LockScreen.js",
+      "size_bytes": 5117
+    },
+    {
+      "path": "server\\routes\\users.js",
+      "size_bytes": 4597
+    },
+    {
+      "path": "server\\routes\\analytics.js",
+      "size_bytes": 3739
+    }
+  ],
+  "git": {
+    "is_git_repo": true,
+    "commit_count": "19",
+    "log_oneline": [
+      "f9f3244 Removed rain-style notification prompt",
+      "e6bade5 Broaden forceful install modal condition",
+      "6b222b2 Move api/ files to server/ and update imports",
+      "a08bfc5 Replace per-component PWA prompts with global modal",
+      "602629a Update Push Notifications",
+      "84950f3 Redesigned summary card",
+      "fc6722b Added Summary card & Notification System & a few PWA Adjustments",
+      "06b01d1 Implemented Explicit Debts & Persistent Selection",
+      "e89fc80 Fixed Date issues",
+      "3b3c032 Implemented Avatar thumbnail system along with cache improvements, performance optimizations and database normalization",
+      "1e6e5f0 Improved UI, Added suggestions support for archived events",
+      "1f30a68 Improved Leaderboard list, (added badge in main user list), Implemented Vercel Speed Insights",
+      "45708ab Fixed optimization and speed issues & Implemented Avatar optimizations",
+      "fdac4df Made Optimizations in App, Implemented cache support and few ptimizations",
+      "784fe42 Improved User Interface",
+      "a18735f Connected main Turso DB with local repo",
+      "9d3241f Fix: Ensure DB initialization before login",
+      "5c227f7 Fix: removed redundant backend package.json and node_modules\"",
+      "58aacf8 Initial commit"
+    ],
+    "first_commit_date": "2026-06-20 15:13:26 +0100",
+    "last_commit_date": "2026-06-20 15:13:26 +0100",
+    "notable_commits": [],
+    "most_changed_files": [
+      {
+        "path": "src/components/UserDashboard.js",
+        "changes": 13
+      },
+      {
+        "path": "dev-dist/sw.js",
+        "changes": 11
+      },
+      {
+        "path": "src/components/AdminDashboard.js",
+        "changes": 9
+      },
+      {
+        "path": "api/database/db.js",
+        "changes": 8
+      },
+      {
+        "path": "api/index.js",
+        "changes": 7
+      },
+      {
+        "path": "api/routes/events.js",
+        "changes": 7
+      },
+      {
+        "path": "package-lock.json",
+        "changes": 7
+      },
+      {
+        "path": "package.json",
+        "changes": 7
+      },
+      {
+        "path": "src/utils/api.js",
+        "changes": 7
+      },
+      {
+        "path": "src/styles/main.css",
+        "changes": 7
+      },
+      {
+        "path": "src/main.js",
+        "changes": 6
+      },
+      {
+        "path": "api/routes/expenses.js",
+        "changes": 6
+      },
+      {
+        "path": "src/components/AnalyticsDashboard.js",
+        "changes": 6
+      },
+      {
+        "path": "src/components/EventHistory.js",
+        "changes": 6
+      },
+      {
+        "path": "vite.config.js",
+        "changes": 4
+      }
+    ]
+  }
+}
