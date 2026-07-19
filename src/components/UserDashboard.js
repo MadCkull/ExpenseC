@@ -441,6 +441,8 @@ export function createUserDashboard({ role, onLogout }) {
       const hasEntered = user.amount != null;
       const isKing = state.kingUserId && state.kingUserId == user.user_id;
       const safeName = escapeHtml(user.user_name);
+      const currentAmount = hasEntered ? user.amount : 0;
+      const displayAmount = hasEntered ? `£${Number(user.amount).toFixed(2)}` : '£0.00';
 
       // Find debts where someone owes THIS user (current user is creditor)
       const debtsToMe = state.explicitDebts.filter(d => d.creditor_id == user.user_id);
@@ -456,30 +458,46 @@ export function createUserDashboard({ role, onLogout }) {
                     <div class="text-xs text-secondary">${hasEntered ? 'Saved' : 'Enter amount spent'}</div>
                  </div>
               </div>
-              <div class="flex items-center gap-sm">
+              <!-- Expense Input Area - 3 states -->
+              <div id="expense-input-area" data-userid="${user.user_id}" data-amount="${currentAmount}" style="display: flex; align-items: center; gap: 6px;">
+                 <!-- Add-mode: slid-out current amount (hidden by default) -->
+                 <div id="expense-slid-amount" style="display: none; align-items: center; gap: 4px; opacity: 0; transform: translateX(10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);">
+                    <span style="font-size: 16px; font-weight: 700; color: var(--ios-text-secondary); white-space: nowrap;">${displayAmount}</span>
+                    <span id="expense-op-icon" style="font-size: 13px; font-weight: 700; color: var(--ios-text-secondary); transition: all 0.2s;">+</span>
+                 </div>
+                 <!-- Main input wrapper -->
                  <div style="position: relative; display: flex; align-items: center;">
-                    <div id="expense-preview-pill" style="position: absolute; top: -35px; right: 0; background: rgba(10, 132, 255, 0.15); border: 1px solid rgba(10, 132, 255, 0.4); color: #0A84FF; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap; opacity: 0; transform: translateY(10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10;">
-                       <!-- dynamic -->
-                    </div>
-                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ios-text-secondary); font-weight: bold;">£</span>
-                    <input type="number" 
-                           id="current-user-expense-input"
+                    <span id="expense-pound-sign" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--ios-text-secondary); font-weight: 700; font-size: 14px; z-index: 2; transition: opacity 0.2s;">£</span>
+                    <input type="number"
+                           id="expense-hero-input"
                            inputmode="decimal"
-                           placeholder="0.00" 
-                           value="${hasEntered ? user.amount : ''}" 
-                           data-original="${hasEntered ? user.amount : 0}"
-                           class="ios-input expense-input-hero" 
+                           placeholder="0.00"
+                           value="${hasEntered ? user.amount : ''}"
+                           data-original="${currentAmount}"
                            data-userid="${user.user_id}"
-                           style="width: 140px; font-size: 20px; font-weight: bold; padding: 12px 64px 12px 28px; background: rgba(0,0,0,0.3); border-radius: 12px; text-align: left;"
+                           class="ios-input"
+                           style="width: 110px; font-size: 18px; font-weight: 700; padding: 10px 36px 10px 26px; background: rgba(0,0,0,0.3); border-radius: 12px; text-align: right; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid transparent;"
                            ${!state.active ? 'disabled' : ''}
                     >
-                    <div style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; pointer-events: none;" id="expense-actions-overlay">
-                       <button id="expense-add-btn" style="width: 26px; height: 26px; border-radius: 8px; border: none; background: #30D158; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; pointer-events: auto;" title="Add to total"><i class="fa-solid fa-plus" style="font-size: 12px;"></i></button>
-                       <button id="expense-set-btn" style="width: 26px; height: 26px; border-radius: 8px; border: none; background: #0A84FF; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; pointer-events: auto;" title="Set total"><i class="fa-solid fa-check" style="font-size: 12px;"></i></button>
-                    </div>
+                    <!-- + icon inside input (default state) -->
+                    <button id="expense-inline-add-btn" style="position: absolute; right: 3px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border-radius: 9px; border: none; background: transparent; color: var(--ios-blue); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; z-index: 3;" title="Add to total">
+                       <i class="fa-solid fa-plus" style="font-size: 13px;"></i>
+                    </button>
+                    <!-- Separator line (default state) -->
+                    <div id="expense-separator" style="position: absolute; right: 34px; top: 50%; transform: translateY(-50%); width: 1px; height: 20px; background: rgba(255,255,255,0.12); transition: opacity 0.2s; z-index: 2;"></div>
+                    <!-- Confirm tick icon (add-mode, hidden by default) -->
+                    <button id="expense-confirm-btn" style="position: absolute; right: 3px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border-radius: 9px; border: none; background: var(--ios-blue); color: white; display: none; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; z-index: 3;" title="Confirm">
+                       <i class="fa-solid fa-check" style="font-size: 12px;"></i>
+                    </button>
                  </div>
-                 <button id="expense-history-btn" data-userid="${user.user_id}" style="width: 32px; height: 32px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--ios-text-secondary); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
+                 <!-- = total (add-mode, hidden by default) -->
+                 <div id="expense-total-display" style="display: none; align-items: center; gap: 4px; opacity: 0; transform: translateX(-10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); white-space: nowrap;">
+                    <span style="font-size: 13px; font-weight: 700; color: var(--ios-text-secondary);">=</span>
+                    <span id="expense-total-value" style="font-size: 16px; font-weight: 800; color: var(--ios-blue); min-width: 20px;">?</span>
+                 </div>
+                 <!-- History icon (default state) -->
+                 <button id="expense-history-btn" data-userid="${user.user_id}" style="width: 32px; height: 32px; min-width: 32px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--ios-text-secondary); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.25s;">
+                    <i class="fa-solid fa-clock-rotate-left" style="font-size: 13px;"></i>
                  </button>
               </div>
            </div>
@@ -601,107 +619,252 @@ export function createUserDashboard({ role, onLogout }) {
        });
     }
 
-    const heroInput = container.querySelector('#current-user-expense-input');
-    const actionsOverlay = container.querySelector('#expense-actions-overlay');
-    const addBtn = container.querySelector('#expense-add-btn');
-    const setBtn = container.querySelector('#expense-set-btn');
+    // --- Expense input: 3-state UI (default / edit / add) ---
+    const heroInput = container.querySelector('#expense-hero-input');
+    const inputArea = container.querySelector('#expense-input-area');
+    const slidAmount = container.querySelector('#expense-slid-amount');
+    const opIcon = container.querySelector('#expense-op-icon');
+    const inlineAddBtn = container.querySelector('#expense-inline-add-btn');
+    const confirmBtn = container.querySelector('#expense-confirm-btn');
+    const separator = container.querySelector('#expense-separator');
+    const totalDisplay = container.querySelector('#expense-total-display');
+    const totalValue = container.querySelector('#expense-total-value');
     const historyBtn = container.querySelector('#expense-history-btn');
-    const previewPill = container.querySelector('#expense-preview-pill');
+    const poundSign = container.querySelector('#expense-pound-sign');
 
-    if (heroInput) {
-        heroInput.addEventListener('input', (e) => {
-            const val = e.target.value;
-            const original = parseFloat(e.target.dataset.original) || 0;
-            const typed = parseFloat(val);
+    if (heroInput && inputArea) {
+        let inputMode = 'default'; // 'default' | 'edit' | 'add'
+        let _blurTimeout = null;
+        let _saving = false;
 
-            if (val !== '') {
-                actionsOverlay.style.opacity = '1';
-                actionsOverlay.style.pointerEvents = 'auto';
-                
-                if (!isNaN(typed)) {
-                    previewPill.style.opacity = '1';
-                    previewPill.style.transform = 'translateY(0)';
-                    const future = original + typed;
-                    previewPill.innerHTML = `£${original.toFixed(2)} + £${typed.toFixed(2)} = <strong>£${future.toFixed(2)}</strong>`;
-                } else {
-                    previewPill.style.opacity = '0';
-                    previewPill.style.transform = 'translateY(10px)';
-                }
-            } else {
-                actionsOverlay.style.opacity = '0';
-                actionsOverlay.style.pointerEvents = 'none';
-                previewPill.style.opacity = '0';
-                previewPill.style.transform = 'translateY(10px)';
+        const enterEditMode = () => {
+            if (inputMode === 'edit' || !state.active) return;
+            inputMode = 'edit';
+            // Hide + icon and separator, let user type freely
+            if (inlineAddBtn) inlineAddBtn.style.display = 'none';
+            if (separator) separator.style.opacity = '0';
+            // Expand input
+            heroInput.style.paddingRight = '12px';
+            heroInput.style.borderColor = 'var(--ios-blue)';
+            heroInput.value = '';
+            heroInput.placeholder = '0.00';
+        };
+
+        const enterAddMode = () => {
+            if (inputMode === 'add' || !state.active) return;
+            inputMode = 'add';
+            const currentAmt = parseFloat(inputArea.dataset.amount) || 0;
+
+            // Hide inline + and separator
+            if (inlineAddBtn) inlineAddBtn.style.display = 'none';
+            if (separator) separator.style.opacity = '0';
+            // Hide history button
+            if (historyBtn) { historyBtn.style.opacity = '0'; historyBtn.style.width = '0'; historyBtn.style.minWidth = '0'; historyBtn.style.padding = '0'; historyBtn.style.border = 'none'; historyBtn.style.overflow = 'hidden'; }
+
+            // Show slid-out current amount
+            if (slidAmount) {
+                slidAmount.style.display = 'flex';
+                requestAnimationFrame(() => {
+                    slidAmount.style.opacity = '1';
+                    slidAmount.style.transform = 'translateX(0)';
+                });
+            }
+
+            // Show confirm tick
+            if (confirmBtn) { confirmBtn.style.display = 'flex'; }
+
+            // Show = total
+            if (totalDisplay) {
+                totalDisplay.style.display = 'flex';
+                requestAnimationFrame(() => {
+                    totalDisplay.style.opacity = '1';
+                    totalDisplay.style.transform = 'translateX(0)';
+                });
+            }
+            if (totalValue) totalValue.textContent = '?';
+
+            // Style input for add mode
+            heroInput.style.borderColor = 'var(--ios-blue)';
+            heroInput.style.paddingRight = '36px';
+            heroInput.value = '';
+            heroInput.placeholder = '0.00';
+            heroInput.focus();
+        };
+
+        const resetToDefault = () => {
+            inputMode = 'default';
+            _saving = false;
+            const currentAmt = parseFloat(inputArea.dataset.amount) || 0;
+
+            // Restore input value
+            heroInput.value = currentAmt > 0 ? currentAmt : '';
+            heroInput.style.paddingRight = '36px';
+            heroInput.style.borderColor = 'transparent';
+            heroInput.placeholder = '0.00';
+
+            // Show inline + and separator
+            if (inlineAddBtn) { inlineAddBtn.style.display = 'flex'; inlineAddBtn.querySelector('i').className = 'fa-solid fa-plus'; }
+            if (separator) separator.style.opacity = '1';
+
+            // Hide slid-out amount
+            if (slidAmount) { slidAmount.style.opacity = '0'; slidAmount.style.transform = 'translateX(10px)'; setTimeout(() => { if (inputMode === 'default') slidAmount.style.display = 'none'; }, 300); }
+
+            // Hide confirm
+            if (confirmBtn) confirmBtn.style.display = 'none';
+
+            // Hide = total
+            if (totalDisplay) { totalDisplay.style.opacity = '0'; totalDisplay.style.transform = 'translateX(-10px)'; setTimeout(() => { if (inputMode === 'default') totalDisplay.style.display = 'none'; }, 300); }
+
+            // Show history button
+            if (historyBtn) { historyBtn.style.opacity = '1'; historyBtn.style.width = '32px'; historyBtn.style.minWidth = '32px'; historyBtn.style.padding = ''; historyBtn.style.border = '1px solid rgba(255,255,255,0.1)'; historyBtn.style.overflow = ''; }
+        };
+
+        // Click on input area (the amount text) -> edit mode
+        heroInput.addEventListener('focus', (e) => {
+            if (inputMode === 'default') {
+                enterEditMode();
             }
         });
 
-        heroInput.addEventListener('focus', () => {
-            heroInput.select();
-        });
+        // Click on + icon -> add mode
+        if (inlineAddBtn) {
+            inlineAddBtn.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            inlineAddBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (_blurTimeout) { clearTimeout(_blurTimeout); _blurTimeout = null; }
+                enterAddMode();
+            });
+        }
 
-        // Hide UI on blur if clicking outside completely (delay to allow button clicks)
-        heroInput.addEventListener('blur', (e) => {
-            setTimeout(() => {
-                if (actionsOverlay) actionsOverlay.style.opacity = '0';
-                if (actionsOverlay) actionsOverlay.style.pointerEvents = 'none';
-                if (previewPill) previewPill.style.opacity = '0';
-                if (previewPill) previewPill.style.transform = 'translateY(10px)';
-                
-                // If they typed something but blurred without clicking, we can auto-save (set)
-                if (heroInput.value !== '' && parseFloat(heroInput.value) !== parseFloat(heroInput.dataset.original)) {
-                   setBtn.click();
+        // Live update total in add mode
+        heroInput.addEventListener('input', () => {
+            if (inputMode === 'add') {
+                const typed = parseFloat(heroInput.value);
+                const currentAmt = parseFloat(inputArea.dataset.amount) || 0;
+                if (heroInput.value === '' || isNaN(typed)) {
+                    if (totalValue) totalValue.textContent = '?';
                 } else {
-                   heroInput.value = heroInput.dataset.original > 0 ? heroInput.dataset.original : '';
+                    const sum = currentAmt + typed;
+                    if (totalValue) totalValue.textContent = `£${sum.toFixed(2)}`;
                 }
-            }, 200);
+            }
         });
 
-        const saveExpense = async (isAdd) => {
-            const userId = heroInput.dataset.userid;
-            const val = heroInput.value;
-            const amount = val === '' ? null : parseFloat(val); 
-            
-            if (amount === null || isNaN(amount)) {
-                // If clearing
-                if (!isAdd) {
-                    try {
-                        await api.expenses.update(userId, null);
-                        loadData(true);
-                    } catch(e) {}
+        // Confirm button (tick) in add mode
+        if (confirmBtn) {
+            confirmBtn.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            confirmBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (_blurTimeout) { clearTimeout(_blurTimeout); _blurTimeout = null; }
+                doAdd();
+            });
+        }
+
+        // Blur handler — delayed to allow button clicks
+        heroInput.addEventListener('blur', () => {
+            _blurTimeout = setTimeout(() => {
+                if (_saving) return;
+                if (inputMode === 'edit') {
+                    const val = heroInput.value.trim();
+                    if (val === '' || isNaN(parseFloat(val))) {
+                        // Nothing typed -> cancel
+                        resetToDefault();
+                    } else {
+                        // User typed a value -> set it
+                        doSet();
+                    }
+                } else if (inputMode === 'add') {
+                    const val = heroInput.value.trim();
+                    if (val === '' || isNaN(parseFloat(val))) {
+                        // Nothing typed -> cancel
+                        resetToDefault();
+                    } else {
+                        // User typed a value -> add it
+                        doAdd();
+                    }
                 }
+            }, 250);
+        });
+
+        const doSet = async () => {
+            if (_saving) return;
+            _saving = true;
+            const userId = heroInput.dataset.userid;
+            const val = heroInput.value.trim();
+            const amount = val === '' ? null : parseFloat(val);
+
+            if (amount === null || isNaN(amount)) {
+                resetToDefault();
                 return;
             }
 
-            const prevExpenses = [...state.expenses];
-            try {
-                if (isAdd) {
-                    await api.expenses.add(userId, amount);
-                } else {
-                    await api.expenses.update(userId, amount);
-                }
-                
-                // Show success animation on the pill
-                if (previewPill) {
-                    previewPill.innerHTML = `<i class="fa-solid fa-check"></i> Saved`;
-                    previewPill.style.background = 'rgba(48, 209, 88, 0.15)';
-                    previewPill.style.borderColor = 'rgba(48, 209, 88, 0.4)';
-                    previewPill.style.color = '#30D158';
-                }
-                setTimeout(() => loadData(true), 300);
-            } catch (err) {
-                console.error(err);
-                state.expenses = prevExpenses;
-                render();
-                alert("Failed to save expense.");
+            // OPTIMISTIC: update state + UI immediately
+            const idx = state.expenses.findIndex(u => u.user_id == userId);
+            if (idx !== -1) {
+                state.expenses[idx] = { ...state.expenses[idx], amount };
             }
+            inputArea.dataset.amount = amount;
+            recalcStats();
+            resetToDefault();
+            render();
+
+            // Background API call
+            try {
+                await api.expenses.update(userId, amount);
+            } catch (err) {
+                console.error('Set expense failed:', err);
+            }
+            // Always refresh from server to get authoritative state
+            loadData(true);
         };
 
-        if (addBtn) addBtn.addEventListener('click', () => saveExpense(true));
-        if (setBtn) setBtn.addEventListener('click', () => saveExpense(false));
+        const doAdd = async () => {
+            if (_saving) return;
+            _saving = true;
+            const userId = heroInput.dataset.userid;
+            const val = heroInput.value.trim();
+            const addAmount = parseFloat(val);
+
+            if (isNaN(addAmount) || addAmount === 0) {
+                resetToDefault();
+                return;
+            }
+
+            const currentAmt = parseFloat(inputArea.dataset.amount) || 0;
+            const newAmount = currentAmt + addAmount;
+
+            // OPTIMISTIC: update state + UI immediately
+            const idx = state.expenses.findIndex(u => u.user_id == userId);
+            if (idx !== -1) {
+                state.expenses[idx] = { ...state.expenses[idx], amount: newAmount };
+            }
+            inputArea.dataset.amount = newAmount;
+            recalcStats();
+            resetToDefault();
+            render();
+
+            // Background API call
+            try {
+                await api.expenses.add(userId, addAmount);
+            } catch (err) {
+                console.error('Add expense failed:', err);
+            }
+            // Always refresh from server to get authoritative state
+            loadData(true);
+        };
     }
 
     if (historyBtn) {
-        historyBtn.addEventListener('click', async () => {
+        historyBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
             const userId = historyBtn.dataset.userid;
             const user = state.expenses.find(u => u.user_id == userId);
             if (user && state.event) {
