@@ -453,16 +453,16 @@ export function createUserDashboard({ role, onLogout }) {
            <div class="flex justify-between items-center">
               <div class="flex items-center gap-md">
                  ${renderAvatar({ name: user.user_name, avatar: user.user_avatar, id: user.user_id }, 44, hasEntered ? 'hero-entered' : '')}
-                 <div>
-                    <div class="text-md font-bold">${safeName}</div>
-                    <div class="text-xs text-secondary">${hasEntered ? 'Saved' : 'Enter amount spent'}</div>
-                 </div>
+                  <div id="expense-user-info" style="overflow: hidden; transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;">
+                     <div class="text-md font-bold" style="white-space: nowrap;">${safeName}</div>
+                     <div class="text-xs text-secondary" style="white-space: nowrap;">${hasEntered ? 'Saved' : 'Enter amount spent'}</div>
+                  </div>
               </div>
               <!-- Expense Input Area - 3 states -->
               <div id="expense-input-area" data-userid="${user.user_id}" data-amount="${currentAmount}" style="display: flex; align-items: center; gap: 6px;">
                  <!-- Add-mode: slid-out current amount (hidden by default) -->
                  <div id="expense-slid-amount" style="display: none; align-items: center; gap: 4px; opacity: 0; transform: translateX(10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);">
-                    <span style="font-size: 16px; font-weight: 700; color: var(--ios-text-secondary); white-space: nowrap;">${displayAmount}</span>
+                     <span id="expense-slid-amount-text" style="font-size: 16px; font-weight: 700; color: var(--ios-text-secondary); white-space: nowrap; transition: font-size 0.2s ease;">${displayAmount}</span>
                     <span id="expense-op-icon" style="font-size: 13px; font-weight: 700; color: var(--ios-text-secondary); transition: all 0.2s;">+</span>
                  </div>
                  <!-- Main input wrapper -->
@@ -476,7 +476,7 @@ export function createUserDashboard({ role, onLogout }) {
                            data-original="${currentAmount}"
                            data-userid="${user.user_id}"
                            class="ios-input"
-                           style="width: 110px; font-size: 18px; font-weight: 700; padding: 10px 36px 10px 26px; background: rgba(0,0,0,0.3); border-radius: 12px; text-align: right; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid transparent;"
+                            style="width: 110px; font-size: 18px; font-weight: 700; padding: 10px 36px 10px 28px; background: rgba(0,0,0,0.3); border-radius: 12px; text-align: left; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid transparent;"
                            ${!state.active ? 'disabled' : ''}
                     >
                     <!-- + icon inside input (default state) -->
@@ -492,8 +492,8 @@ export function createUserDashboard({ role, onLogout }) {
                  </div>
                  <!-- = total (add-mode, hidden by default) -->
                  <div id="expense-total-display" style="display: none; align-items: center; gap: 4px; opacity: 0; transform: translateX(-10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); white-space: nowrap;">
-                    <span style="font-size: 13px; font-weight: 700; color: var(--ios-text-secondary);">=</span>
-                    <span id="expense-total-value" style="font-size: 16px; font-weight: 800; color: var(--ios-blue); min-width: 20px;">?</span>
+                     <span id="expense-equals-sign" style="font-size: 13px; font-weight: 700; color: var(--ios-text-secondary); transition: font-size 0.2s ease;">=</span>
+                     <span id="expense-total-value" style="font-size: 16px; font-weight: 800; color: var(--ios-blue); min-width: 58px; display: inline-block; transition: font-size 0.2s ease;">?</span>
                  </div>
                  <!-- History icon (default state) -->
                  <button id="expense-history-btn" data-userid="${user.user_id}" style="width: 32px; height: 32px; min-width: 32px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--ios-text-secondary); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.25s;">
@@ -631,6 +631,9 @@ export function createUserDashboard({ role, onLogout }) {
     const totalValue = container.querySelector('#expense-total-value');
     const historyBtn = container.querySelector('#expense-history-btn');
     const poundSign = container.querySelector('#expense-pound-sign');
+    const userInfo = container.querySelector('#expense-user-info');
+    const slidAmountText = container.querySelector('#expense-slid-amount-text');
+    const equalsSign = container.querySelector('#expense-equals-sign');
 
     if (heroInput && inputArea) {
         let inputMode = 'default'; // 'default' | 'edit' | 'add'
@@ -655,37 +658,54 @@ export function createUserDashboard({ role, onLogout }) {
             inputMode = 'add';
             const currentAmt = parseFloat(inputArea.dataset.amount) || 0;
 
+            // Hide user name & saved text (smooth collapse, keep profile pic)
+            if (userInfo) {
+                userInfo.style.maxWidth = userInfo.scrollWidth + 'px';
+                userInfo.offsetHeight; // force reflow for transition
+                userInfo.style.maxWidth = '0px';
+                userInfo.style.opacity = '0';
+            }
+
             // Hide inline + and separator
             if (inlineAddBtn) inlineAddBtn.style.display = 'none';
             if (separator) separator.style.opacity = '0';
             // Hide history button
             if (historyBtn) { historyBtn.style.opacity = '0'; historyBtn.style.width = '0'; historyBtn.style.minWidth = '0'; historyBtn.style.padding = '0'; historyBtn.style.border = 'none'; historyBtn.style.overflow = 'hidden'; }
 
+            // Expand input area to fill freed space
+            if (inputArea) { inputArea.style.flex = '1'; inputArea.style.gap = '8px'; }
+
             // Show slid-out current amount
             if (slidAmount) {
                 slidAmount.style.display = 'flex';
+                slidAmount.style.gap = '6px';
                 requestAnimationFrame(() => {
                     slidAmount.style.opacity = '1';
                     slidAmount.style.transform = 'translateX(0)';
                 });
             }
 
-            // Show confirm tick
-            if (confirmBtn) { confirmBtn.style.display = 'flex'; }
+            // Increase sizes to match input bar height
+            if (slidAmountText) slidAmountText.style.fontSize = '18px';
+            if (opIcon) { opIcon.style.fontSize = '16px'; opIcon.style.color = 'var(--ios-blue)'; }
+            if (equalsSign) equalsSign.style.fontSize = '16px';
+            if (totalValue) { totalValue.style.fontSize = '18px'; totalValue.textContent = '?'; }
+
+            // No confirm tick — blur auto-saves on click outside
 
             // Show = total
             if (totalDisplay) {
                 totalDisplay.style.display = 'flex';
+                totalDisplay.style.gap = '6px';
                 requestAnimationFrame(() => {
                     totalDisplay.style.opacity = '1';
                     totalDisplay.style.transform = 'translateX(0)';
                 });
             }
-            if (totalValue) totalValue.textContent = '?';
 
-            // Style input for add mode
+            // Style input for add mode (no tick button, so less right padding)
             heroInput.style.borderColor = 'var(--ios-blue)';
-            heroInput.style.paddingRight = '36px';
+            heroInput.style.paddingRight = '12px';
             heroInput.value = '';
             heroInput.placeholder = '0.00';
             heroInput.focus();
@@ -695,6 +715,13 @@ export function createUserDashboard({ role, onLogout }) {
             inputMode = 'default';
             _saving = false;
             const currentAmt = parseFloat(inputArea.dataset.amount) || 0;
+
+            // Show user name & saved text back (smooth expand)
+            if (userInfo) {
+                userInfo.style.maxWidth = '200px';
+                userInfo.style.opacity = '1';
+                setTimeout(() => { if (inputMode === 'default') userInfo.style.maxWidth = ''; }, 350);
+            }
 
             // Restore input value
             heroInput.value = currentAmt > 0 ? currentAmt : '';
@@ -706,8 +733,15 @@ export function createUserDashboard({ role, onLogout }) {
             if (inlineAddBtn) { inlineAddBtn.style.display = 'flex'; inlineAddBtn.querySelector('i').className = 'fa-solid fa-plus'; }
             if (separator) separator.style.opacity = '1';
 
-            // Hide slid-out amount
+            // Reset input area flex
+            if (inputArea) { inputArea.style.flex = ''; inputArea.style.gap = '6px'; }
+
+            // Hide slid-out amount & reset sizes
             if (slidAmount) { slidAmount.style.opacity = '0'; slidAmount.style.transform = 'translateX(10px)'; setTimeout(() => { if (inputMode === 'default') slidAmount.style.display = 'none'; }, 300); }
+            if (slidAmountText) slidAmountText.style.fontSize = '16px';
+            if (opIcon) { opIcon.style.fontSize = '13px'; opIcon.style.color = 'var(--ios-text-secondary)'; }
+            if (equalsSign) equalsSign.style.fontSize = '13px';
+            if (totalValue) totalValue.style.fontSize = '16px';
 
             // Hide confirm
             if (confirmBtn) confirmBtn.style.display = 'none';
