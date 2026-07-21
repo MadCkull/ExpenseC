@@ -168,6 +168,20 @@ export async function initDB() {
       );
     `);
 
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS fines (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        fined_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (fined_by) REFERENCES users(id)
+      );
+    `);
+
     // Insert default PINs
     const adminPinScan = await db.execute("SELECT value FROM settings WHERE key = 'admin_pin'");
     if (adminPinScan.rows.length === 0) {
@@ -192,6 +206,7 @@ export async function initDB() {
         await db.execute("CREATE INDEX IF NOT EXISTS idx_events_archived_at ON events(archived_at)");
         await db.execute("CREATE INDEX IF NOT EXISTS idx_events_gandu_id ON events(gandu_id)");
         await db.execute("CREATE INDEX IF NOT EXISTS idx_explicit_debts_event ON explicit_debts(event_id)");
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_fines_event ON fines(event_id)");
     } catch(e) { /* ignore if already exists */ }
 
     isInitialized = true;

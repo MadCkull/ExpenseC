@@ -202,8 +202,15 @@ router.post('/archive', async (req, res) => {
     });
     const explicitDebts = debtsResult.rows;
 
-    // 3. Simple Settlement Calculation (with explicit debts support)
-    const calculateSettlements = (exps, ph, debts = []) => {
+    // Fetch fines for this event
+    const finesResult = await db.execute({
+      sql: 'SELECT user_id, amount FROM fines WHERE event_id = ?',
+      args: [event.id]
+    });
+    const fines = finesResult.rows;
+
+    // 3. Simple Settlement Calculation (with explicit debts & fines support)
+    const calculateSettlements = (exps, ph, debts = [], finesList = []) => {
         const balances = exps.map(u => ({
             user_id: u.user_id,
             balance: (u.amount || 0) - ph
@@ -216,6 +223,17 @@ router.post('/archive', async (req, res) => {
             if (creditor && debtor) {
                 creditor.balance += debt.amount;
                 debtor.balance -= debt.amount;
+            }
+        }
+
+        // Apply fines as balance adjustments
+        for (const fine of finesList) {
+            const finedUser = balances.find(b => b.user_id == fine.user_id);
+            if (finedUser) {
+                const otherUsers = balances.filter(b => b.user_id != fine.user_id);
+                const perUserDiscount = otherUsers.length > 0 ? fine.amount / otherUsers.length : 0;
+                finedUser.balance -= fine.amount;
+                otherUsers.forEach(u => u.balance += perUserDiscount);
             }
         }
 
@@ -241,7 +259,7 @@ router.post('/archive', async (req, res) => {
         return settlements;
     };
 
-    const settlements = calculateSettlements(expenses, perHead, explicitDebts);
+    const settlements = calculateSettlements(expenses, perHead, explicitDebts, fines);
 
     // 4. Update Event with Locked Stats and Archive it
     await db.execute({
@@ -299,6 +317,8 @@ router.post('/reopen', async (req, res) => {
 router.delete('/:id', async (req, res) => {
    try {
      const { id } = req.params;
+     await db.execute({ sql: 'DELETE FROM expense_history WHERE event_id = ?', args: [id] });
+     await db.execute({ sql: 'DELETE FROM fines WHERE event_id = ?', args: [id] });
      await db.execute({ sql: 'DELETE FROM explicit_debts WHERE event_id = ?', args: [id] });
      await db.execute({ sql: 'DELETE FROM expenses WHERE event_id = ?', args: [id] });
      await db.execute({ sql: 'DELETE FROM events WHERE id = ?', args: [id] });

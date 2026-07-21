@@ -16,6 +16,7 @@ import analyticsRoutes from '../server/routes/analytics.js';
 import jokersRoutes from '../server/routes/gandus.js';
 import explicitDebtsRoutes from '../server/routes/explicit_debts.js';
 import notificationsRoutes from '../server/routes/notifications.js';
+import finesRoutes from '../server/routes/fines.js';
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/gandus', jokersRoutes);
 app.use('/api/explicit-debts', explicitDebtsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/fines', finesRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

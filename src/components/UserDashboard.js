@@ -22,6 +22,7 @@ export function createUserDashboard({ role, onLogout }) {
   let state = {
     expenses: cached?.expenses || [],
     explicitDebts: cached?.explicitDebts || [],
+    fines: cached?.fines || [],
     stats: cached?.stats || { total: 0, per_head: 0, users_count: 0 },
     loading: !cached,  // Only show loading spinner if no cache exists
     eventName: '',
@@ -117,26 +118,41 @@ export function createUserDashboard({ role, onLogout }) {
     // Header — adapt subtitle for summary card state
     const showSummaryCard = !state.active && state.lastEvent;
     let html = `
-      <header class="flex justify-between items-center mb-6 safe-area-top">
-        <div class="flex flex-col" style="max-width: 60%;">
+      <header class="flex justify-between items-center mb-6 safe-area-top relative">
+        <div class="flex flex-col flex-1">
           <h1 class="text-xl font-bold cursor-pointer hover:opacity-70 flex items-center gap-1" id="current-username">
             ${userName}
           </h1>
-          ${state.active && state.event ? `
-             <div class="mt-1">
-                <div class="text-sm font-semibold">${escapeHtml(state.event.name)}</div>
-                <div class="text-xs text-secondary font-mono">${uiDate(state.event.start_date)} - ${uiDate(state.event.end_date)}</div>
-             </div>
-          ` : showSummaryCard ? '' : `<p class="text-secondary text-xs mt-1">No Active Event</p>`}
+          ${!state.active && !showSummaryCard ? `<p class="text-secondary text-xs mt-1">No Active Event</p>` : ''}
         </div>
-        <div class="flex items-center gap-sm">
+        <div class="flex items-center gap-sm flex-shrink-0">
           <button id="gandu-btn" style="background: rgba(10, 132, 255, 0.1); border: 1px solid rgba(10, 132, 255, 0.3); border-radius: 30px; padding: 0 12px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
             <span style="font-size: 10px; font-weight: 800; color: var(--ios-blue); text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;">Gandu List</span>
           </button>
-          <button class="ios-btn secondary" id="history-btn" style="width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-clock-rotate-left"></i></button>
-          <button class="ios-btn secondary" id="analytics-btn" style="width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-chart-line"></i></button>
-          ${role === 'admin' ? '<button class="ios-btn secondary" id="admin-btn" style="width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-user-gear"></i></button>' : ''}
-          <button class="ios-btn secondary text-red" id="logout-btn" style="width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-lock"></i></button>
+          <button id="header-menu-btn" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 30px; padding: 0 16px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; color: white;">
+            <i class="fa-solid fa-ellipsis"></i>
+          </button>
+          
+          <!-- Dropdown Menu -->
+          <div id="header-dropdown" class="header-dropdown-menu hidden">
+             <button class="dropdown-item" id="menu-analytics-btn">
+                <i class="fa-solid fa-chart-line" style="color: var(--ios-blue);"></i> Analytics
+             </button>
+             <button class="dropdown-item" id="menu-history-btn">
+                <i class="fa-solid fa-clock-rotate-left" style="color: var(--ios-text-secondary);"></i> History
+             </button>
+             <button class="dropdown-item" id="menu-fines-btn">
+                <i class="fa-solid fa-gavel" style="color: #FF9500;"></i> Fines
+             </button>
+             ${role === 'admin' ? `
+             <button class="dropdown-item" id="menu-admin-btn">
+                <i class="fa-solid fa-user-gear" style="color: white;"></i> Manage
+             </button>
+             ` : ''}
+             <button class="dropdown-item" id="menu-logout-btn" style="color: var(--ios-red);">
+                <i class="fa-solid fa-lock" style="color: var(--ios-red);"></i> Lock
+             </button>
+          </div>
         </div>
       </header>
     `;
@@ -177,17 +193,28 @@ export function createUserDashboard({ role, onLogout }) {
     const { expenses, stats, active } = state;
     const allEntered = active && expenses.length > 0 && expenses.every(u => u.amount !== null);
 
+    let eventInfoHtml = '';
+    if (active && state.event) {
+        eventInfoHtml = `
+            <div class="mb-4 text-center">
+               <div class="text-md font-bold text-white">${escapeHtml(state.event.name)}</div>
+               <div class="text-xs text-secondary font-mono mt-1">${uiDate(state.event.start_date)} - ${uiDate(state.event.end_date)}</div>
+            </div>
+        `;
+    }
+
     if (!active) {
         return '';
     } else if (allEntered) {
         return `
           <div class="ios-card mb-6 fade-in" style="background: linear-gradient(135deg, rgba(10,132,255,0.15), rgba(0,0,0,0.4)); border: 1px solid var(--ios-blue); position: relative;">
-            <button id="settlement-guide-btn" class="suggestions-pill">
+            ${eventInfoHtml}
+            <button id="settlement-guide-btn" class="suggestions-pill" style="top: 16px; right: 16px; position: absolute;">
                Suggestions
             </button>
-            <div class="text-secondary text-xs mb-1 uppercase tracking-widest">PER PERSON TO PAY</div>
-            <div class="text-xxl text-white font-bold">£${(stats?.per_head || 0)}</div>
-            <div class="flex justify-between text-xs text-secondary mt-2">
+            <div class="text-secondary text-xs mb-1 uppercase tracking-widest text-center mt-2">PER PERSON TO PAY</div>
+            <div class="text-xxl text-white font-bold text-center">£${(stats?.per_head || 0)}</div>
+            <div class="flex justify-between text-xs text-secondary mt-4 pt-3" style="border-top: 1px solid rgba(255,255,255,0.1);">
               <span>Total Group: £${(stats?.total || 0).toFixed(2)}</span>
               <span>${stats?.users_count || 0} People</span>
             </div>
@@ -198,8 +225,9 @@ export function createUserDashboard({ role, onLogout }) {
         const isGanduWarning = remaining === 1;
         
         return `
-          <div class="ios-card mb-6" style="background: ${isGanduWarning ? 'rgba(255, 69, 58, 0.08)' : 'rgba(255, 255, 255, 0.03)'}; border: 1px dashed ${isGanduWarning ? 'rgba(255, 69, 58, 0.4)' : 'rgba(255,255,255,0.1)'}; transition: all 0.3s ease;">
-             <div class="text-center py-4">
+          <div class="ios-card mb-6 fade-in" style="background: ${isGanduWarning ? 'rgba(255, 69, 58, 0.08)' : 'rgba(255, 255, 255, 0.03)'}; border: 1px dashed ${isGanduWarning ? 'rgba(255, 69, 58, 0.4)' : 'rgba(255,255,255,0.1)'}; transition: all 0.3s ease;">
+             ${eventInfoHtml}
+             <div class="text-center py-2">
                 <div class="text-lg ${isGanduWarning ? 'text-red font-bold animate-pulse' : 'text-secondary'} mb-1">
                     ${isGanduWarning ? '1 Gandu Left!' : 'Collecting Expenses...'}
                 </div>
@@ -464,6 +492,7 @@ export function createUserDashboard({ role, onLogout }) {
 
       // Find debts where someone owes THIS user (current user is creditor)
       const debtsToMe = state.explicitDebts.filter(d => d.creditor_id == user.user_id);
+      const finesForMe = state.fines.filter(f => f.user_id == user.user_id);
 
       return `
         <div class="ios-card ${isKing ? 'is-king' : ''}" style="padding: 20px; background: rgba(255,255,255,0.05); border: 1px solid ${hasEntered ? 'var(--ios-blue)' : (isKing ? 'rgba(255,215,0,0.4)' : 'rgba(255,255,255,0.1)')}; position: relative;">
@@ -477,7 +506,7 @@ export function createUserDashboard({ role, onLogout }) {
                   </div>
               </div>
               <!-- Expense Input Area - 3 states -->
-              <div id="expense-input-area" data-userid="${user.user_id}" data-amount="${currentAmount}" style="display: flex; align-items: center; gap: 6px; justify-content;">
+              <div id="expense-input-area" data-userid="${user.user_id}" data-amount="${currentAmount}" style="display: flex; align-items: center; gap: 6px; justify-content: center;">
                  <!-- Add-mode: slid-out current amount (hidden by default) -->
                  <div id="expense-slid-amount" style="display: none; align-items: center; gap: 4px; opacity: 0; transform: translateX(10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);">
                      <span id="expense-slid-amount-text" style="font-size: 16px; font-weight: 700; color: var(--ios-text-secondary); white-space: nowrap; transition: font-size 0.2s ease;">${displayAmount}</span>
@@ -519,8 +548,9 @@ export function createUserDashboard({ role, onLogout }) {
                  </button>
               </div>
            </div>
-           ${debtsToMe.length > 0 ? `
+           ${debtsToMe.length > 0 || finesForMe.length > 0 ? `
            <div class="flex flex-wrap gap-xs" style="margin-top: 10px;">
+              ${finesForMe.map(f => `<span class="fine-pill" onclick="if(typeof onFineHistoryClick === 'function') onFineHistoryClick()"><i class="fa-solid fa-gavel"></i> Fined £${f.amount.toFixed(2)}</span>`).join('')}
               ${debtsToMe.map(d => {
                   const debtorName = userStore.getName(d.debtor_id) || 'Someone';
                   return `<span class="explicit-debt-pill debt-info-pill" data-creditor="${d.creditor_id}" data-debtor="${d.debtor_id}" data-amount="${d.amount}" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; background: rgba(48, 209, 88, 0.12); border: 1px solid rgba(48, 209, 88, 0.25); color: #30D158; cursor: pointer; transition: all 0.2s;"><i class="fa-solid fa-arrow-down" style="font-size: 8px;"></i> £${d.amount.toFixed(2)} from ${escapeHtml(debtorName)}</span>`;
@@ -540,6 +570,11 @@ export function createUserDashboard({ role, onLogout }) {
       const debtTheyOweMe = state.explicitDebts.find(d => d.creditor_id == currentUserId && d.debtor_id == user.user_id);
       // Debt where I am debtor for this user (I owe this user)
       const debtIOwe = state.explicitDebts.find(d => d.creditor_id == user.user_id && d.debtor_id == currentUserId);
+      // Debts this user owes to OTHERS (excluding me)
+      const debtsTheyOweOthers = state.explicitDebts.filter(d => d.debtor_id == user.user_id && d.creditor_id != currentUserId);
+      // Fines for this user
+      const finesForUser = state.fines.filter(f => f.user_id == user.user_id);
+      const hasExtraPills = debtTheyOweMe || debtIOwe || debtsTheyOweOthers.length > 0 || finesForUser.length > 0;
 
       return `
         <div class="ios-card collab-row ${isKing ? 'is-king' : ''}" data-userid="${user.user_id}" style="padding: 14px 16px; margin-bottom: 0; background: rgba(255,255,255,0.02); border: ${isKing ? '1px solid rgba(255,215,0,0.2)' : 'none'}; position: relative; cursor: ${state.active ? 'pointer' : 'default'}; transition: background 0.2s;">
@@ -560,10 +595,15 @@ export function createUserDashboard({ role, onLogout }) {
                }
             </div>
           </div>
-          ${debtTheyOweMe || debtIOwe ? `
+          ${hasExtraPills ? `
           <div class="flex flex-wrap gap-xs" style="margin-top: 8px;">
+             ${finesForUser.map(f => `<span class="fine-pill" onclick="event.stopPropagation(); if(typeof onFineHistoryClick === 'function') onFineHistoryClick()"><i class="fa-solid fa-gavel"></i> Fined £${f.amount.toFixed(2)}</span>`).join('')}
              ${debtTheyOweMe ? `<span class="explicit-debt-pill debt-info-pill" data-creditor="${debtTheyOweMe.creditor_id}" data-debtor="${debtTheyOweMe.debtor_id}" data-amount="${debtTheyOweMe.amount}" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; background: rgba(48, 209, 88, 0.12); border: 1px solid rgba(48, 209, 88, 0.25); color: #30D158; cursor: pointer; transition: all 0.2s;"><i class="fa-solid fa-arrow-down" style="font-size: 8px;"></i> Owes you £${debtTheyOweMe.amount.toFixed(2)}</span>` : ''}
              ${debtIOwe ? `<span class="explicit-debt-pill debt-info-pill" data-creditor="${debtIOwe.creditor_id}" data-debtor="${debtIOwe.debtor_id}" data-amount="${debtIOwe.amount}" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; background: rgba(255, 69, 58, 0.12); border: 1px solid rgba(255, 69, 58, 0.25); color: #FF453A; cursor: pointer; transition: all 0.2s;"><i class="fa-solid fa-arrow-up" style="font-size: 8px;"></i> You owe £${debtIOwe.amount.toFixed(2)}</span>` : ''}
+             ${debtsTheyOweOthers.map(d => {
+                const creditorName = userStore.getName(d.creditor_id) || 'Someone';
+                return `<span class="explicit-debt-pill debt-info-pill" data-creditor="${d.creditor_id}" data-debtor="${d.debtor_id}" data-amount="${d.amount}" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: #ffffff; cursor: pointer; transition: all 0.2s;"><i class="fa-solid fa-arrow-right" style="font-size: 8px;"></i> Owes ${escapeHtml(creditorName.split(' ')[0])} £${d.amount.toFixed(2)}</span>`;
+             }).join('')}
           </div>
           ` : ''}
         </div>
@@ -572,22 +612,43 @@ export function createUserDashboard({ role, onLogout }) {
 
 
   const attachListeners = () => {
-    container.querySelector('#logout-btn')?.addEventListener('click', () => {
+    container.querySelector('#menu-logout-btn')?.addEventListener('click', () => {
+      document.getElementById('header-dropdown').classList.add('hidden');
       cleanup();
       onLogout();
     });
     container.querySelector('#current-username')?.addEventListener('click', showIdentificationModal);
-    container.querySelector('#history-btn')?.addEventListener('click', () => {
+    container.querySelector('#menu-history-btn')?.addEventListener('click', () => {
+         document.getElementById('header-dropdown').classList.add('hidden');
          window.dispatchEvent(new CustomEvent('navigate', { detail: 'history' }));
     });
-    container.querySelector('#analytics-btn')?.addEventListener('click', () => {
+    container.querySelector('#menu-analytics-btn')?.addEventListener('click', () => {
+         document.getElementById('header-dropdown').classList.add('hidden');
          window.dispatchEvent(new CustomEvent('navigate', { detail: 'analytics' }));
+    });
+    container.querySelector('#menu-fines-btn')?.addEventListener('click', () => {
+         document.getElementById('header-dropdown').classList.add('hidden');
+         renderFineHistoryModal();
+    });
+    
+    container.querySelector('#header-menu-btn')?.addEventListener('click', (e) => {
+         e.stopPropagation();
+         const dropdown = document.getElementById('header-dropdown');
+         dropdown.classList.toggle('hidden');
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+         const dropdown = document.getElementById('header-dropdown');
+         if (dropdown && !dropdown.classList.contains('hidden') && !e.target.closest('#header-menu-btn')) {
+             dropdown.classList.add('hidden');
+         }
     });
     container.querySelector('#gandu-btn')?.addEventListener('click', showGanduModal);
 
     container.querySelector('#settlement-guide-btn')?.addEventListener('click', () => {
-        const { expenses, stats, explicitDebts } = state;
-        const settlements = calculateSettlements(expenses, Number(stats.per_head), explicitDebts);
+        const { expenses, stats, explicitDebts, fines } = state;
+        const settlements = calculateSettlements(expenses, Number(stats.per_head), explicitDebts, fines);
         showSettlementModal({ 
             settlements, 
             currentUser: state.expenses.find(u => u.user_id == state.currentUserId) 
@@ -632,7 +693,8 @@ export function createUserDashboard({ role, onLogout }) {
     });
     
     if (role === 'admin') {
-       container.querySelector('#admin-btn')?.addEventListener('click', () => {
+       container.querySelector('#menu-admin-btn')?.addEventListener('click', () => {
+          document.getElementById('header-dropdown').classList.add('hidden');
           window.dispatchEvent(new CustomEvent('navigate', { detail: 'admin' }));
        });
     }
@@ -1326,6 +1388,174 @@ export function createUserDashboard({ role, onLogout }) {
      state.stats.per_head = count > 0 ? (total / count).toFixed(2) : 0;
   };
 
+  window.onFineHistoryClick = () => renderFineHistoryModal();
+
+  const renderFineHistoryModal = () => {
+      if (document.getElementById('fine-history-modal-root')) return;
+
+      const modal = document.createElement('div');
+      modal.id = 'fine-history-modal-root';
+      modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); z-index:9999; display:flex; align-items:flex-end;';
+
+      const finesHtml = state.fines.length === 0 ? 
+          '<div class="text-center p-8 text-secondary">No fines issued yet.</div>' :
+          state.fines.map(f => {
+             const userName = userStore.getName(f.user_id) || 'Unknown';
+             const userAvatar = userStore.getAvatar(f.user_id);
+             return `
+                <div class="flex justify-between items-center p-3 mb-2" style="background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px solid rgba(255,149,0,0.2);">
+                   <div class="flex items-center gap-3">
+                      ${renderAvatar({ name: userName, avatar: userAvatar, id: f.user_id }, 36)}
+                      <div class="font-bold text-white">${escapeHtml(userName)}</div>
+                   </div>
+                   <div class="flex items-center gap-3">
+                      <div class="text-md font-bold" style="color: #FF9500;">£${f.amount.toFixed(2)}</div>
+                      ${role === 'admin' ? `
+                      <button class="delete-fine-btn" data-id="${f.id}" style="background:transparent; border:none; color:var(--ios-red); cursor:pointer; padding:4px;">
+                         <i class="fa-solid fa-trash"></i>
+                      </button>
+                      ` : ''}
+                   </div>
+                </div>
+             `;
+          }).join('');
+
+      modal.innerHTML = `
+        <div class="ios-card w-full" style="border-radius: 24px 24px 0 0; border: 1px solid rgba(255,255,255,0.1); border-bottom: none; padding: 0; background: var(--ios-card-bg); max-height: 85vh; display: flex; flex-direction: column; animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+           <div style="padding: 24px 24px 16px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+              <h2 class="text-xl font-bold text-white flex items-center gap-2"><i class="fa-solid fa-gavel" style="color:#FF9500;"></i> Fine History</h2>
+              <div class="flex gap-2">
+                 ${role === 'admin' && state.active ? `
+                 <button id="add-fine-btn" style="width: 32px; height: 32px; border-radius: 50%; background: rgba(255,149,0,0.15); border: none; color: #FF9500; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                    <i class="fa-solid fa-plus"></i>
+                 </button>
+                 ` : ''}
+                 <button id="close-fine-modal-btn" style="width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.1); border: none; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                    <i class="fa-solid fa-xmark"></i>
+                 </button>
+              </div>
+           </div>
+           <div style="padding: 20px 24px; overflow-y: auto;">
+              ${finesHtml}
+           </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+      document.body.classList.add('modal-open');
+
+      const close = () => {
+          modal.remove();
+          document.body.classList.remove('modal-open');
+      };
+
+      modal.querySelector('#close-fine-modal-btn').addEventListener('click', close);
+      modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+      if (role === 'admin' && state.active) {
+          modal.querySelector('#add-fine-btn')?.addEventListener('click', () => {
+              close();
+              renderAddFineModal();
+          });
+
+          modal.querySelectorAll('.delete-fine-btn').forEach(btn => {
+              btn.addEventListener('click', async (e) => {
+                  const id = e.currentTarget.dataset.id;
+                  if (confirm("Delete this fine?")) {
+                      try {
+                          await api.fines.remove(id);
+                          close();
+                          loadData(true);
+                      } catch (err) {
+                          alert("Failed to delete fine");
+                      }
+                  }
+              });
+          });
+      }
+  };
+
+  const renderAddFineModal = () => {
+      if (document.getElementById('add-fine-modal-root')) return;
+
+      const modal = document.createElement('div');
+      modal.id = 'add-fine-modal-root';
+      modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); z-index:9999; display:flex; align-items:center; justify-content:center; padding: 20px;';
+
+      const usersHtml = state.expenses.map(u => `
+          <option value="${u.user_id}">${escapeHtml(userStore.getName(u.user_id) || 'Unknown')}</option>
+      `).join('');
+
+      modal.innerHTML = `
+        <div class="ios-card w-full fade-in" style="width: 100%; max-width: 380px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); padding: 0; background: var(--ios-card-bg); position: relative;">
+           <button id="close-add-fine-btn" style="position: absolute; top: 16px; right: 16px; width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.1); border: none; color: white; display: flex; align-items: center; justify-content: center; z-index: 100; cursor: pointer;">
+              <i class="fa-solid fa-xmark" style="font-size: 14px;"></i>
+           </button>
+           <div style="padding: 32px 24px 16px; text-align: center;">
+              <div class="flex justify-center mb-3">
+                 <div style="width: 56px; height: 56px; border-radius: 50%; background: rgba(255,149,0,0.15); display: flex; align-items: center; justify-content: center; margin: 0 auto;">
+                    <i class="fa-solid fa-gavel text-2xl" style="color: #FF9500;"></i>
+                 </div>
+              </div>
+              <h2 class="text-lg font-bold text-white">Add Fine</h2>
+              <p class="text-xs text-secondary mt-1">Select a user and enter fine amount</p>
+           </div>
+           
+           <div style="padding: 0 24px 32px;">
+              <select id="fine-user-select" class="ios-input mb-4" style="width: 100%; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);">
+                 <option value="" disabled selected>Select User</option>
+                 ${usersHtml}
+              </select>
+              <div style="position: relative;">
+                 <span style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--ios-text-secondary); font-weight: bold; font-size: 18px;">£</span>
+                 <input type="number" 
+                        id="fine-amount-input"
+                        inputmode="decimal"
+                        placeholder="0.00" 
+                        class="ios-input mb-4" 
+                        style="width: 100%; font-size: 28px; font-weight: bold; padding: 16px 16px 16px 36px; background: rgba(0,0,0,0.3); border-radius: 14px; text-align: right; border: 1px solid rgba(255,255,255,0.1);"
+                 >
+              </div>
+              <button id="submit-fine-btn" class="ios-btn primary w-full" style="background: #FF9500; border-radius: 14px; padding: 14px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 12px rgba(255,149,0,0.3);">
+                 Issue Fine
+              </button>
+           </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      document.body.classList.add('modal-open');
+
+      const close = () => {
+          modal.remove();
+          document.body.classList.remove('modal-open');
+      };
+
+      modal.querySelector('#close-add-fine-btn').addEventListener('click', close);
+      modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+      modal.querySelector('#submit-fine-btn').addEventListener('click', async () => {
+          const user_id = modal.querySelector('#fine-user-select').value;
+          const amount = parseFloat(modal.querySelector('#fine-amount-input').value);
+          const btn = modal.querySelector('#submit-fine-btn');
+
+          if (!user_id) { alert("Please select a user"); return; }
+          if (isNaN(amount) || amount <= 0) { alert("Please enter a valid amount"); return; }
+
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+          try {
+              await api.fines.add(user_id, amount, state.currentUserId);
+              close();
+              loadData(true);
+          } catch (err) {
+              alert("Failed to issue fine");
+              btn.disabled = false;
+              btn.innerHTML = 'Issue Fine';
+          }
+      });
+  };
+
   const loadData = async (silent = false) => {
     if (_destroyed) return;
 
@@ -1351,6 +1581,7 @@ export function createUserDashboard({ role, onLogout }) {
         cache.set(CACHE_KEYS.CURRENT_EXPENSES, {
           expenses: data.expenses,
           explicitDebts: data.explicitDebts || [],
+          fines: data.fines || [],
           stats: data.stats,
           event: data.event,
           active: data.active,
@@ -1358,18 +1589,34 @@ export function createUserDashboard({ role, onLogout }) {
           lastEvent: data.lastEvent || null
         });
 
-        // Simple field comparison instead of JSON.stringify
         const newDebts = data.explicitDebts || [];
-        const changed = data.active !== state.active
+        const newFines = data.fines || [];
+        let needsRender = data.active !== state.active
                      || kingUserId !== state.kingUserId
                      || data.expenses.length !== state.expenses.length
                      || data.expenses.some((e, i) => e.amount !== state.expenses[i]?.amount || e.user_id !== state.expenses[i]?.user_id)
-                     || newDebts.length !== state.explicitDebts.length
-                     || newDebts.some((d, i) => d.amount !== state.explicitDebts[i]?.amount || d.creditor_id !== state.explicitDebts[i]?.creditor_id || d.debtor_id !== state.explicitDebts[i]?.debtor_id)
                      || (data.lastEvent?.id !== state.lastEvent?.id);
 
+        // Simple deep check for explicit debts changes
+        const debtsChanged = !state.explicitDebts 
+                     || newDebts.length !== state.explicitDebts.length
+                     || newDebts.some((d, i) => d.amount !== state.explicitDebts[i]?.amount || d.creditor_id !== state.explicitDebts[i]?.creditor_id || d.debtor_id !== state.explicitDebts[i]?.debtor_id);
+                     
+        const finesChanged = !state.fines
+                     || newFines.length !== state.fines.length
+                     || newFines.some((f, i) => f.amount !== state.fines[i]?.amount || f.user_id !== state.fines[i]?.user_id);
+
+        if (debtsChanged) {
+            state.explicitDebts = newDebts;
+            needsRender = true;
+        }
+        
+        if (finesChanged) {
+            state.fines = newFines;
+            needsRender = true;
+        }
+
         state.expenses = data.expenses;
-        state.explicitDebts = newDebts;
         state.stats = data.stats || { total: 0, users_count: 0, per_head: 0 };
         state.event = data.event;
         state.active = data.active;
@@ -1392,7 +1639,7 @@ export function createUserDashboard({ role, onLogout }) {
             });
         }
         
-        if (changed || !silent) {
+        if (needsRender || !silent) {
           render();
         }
     } catch (e) {

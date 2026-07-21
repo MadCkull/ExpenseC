@@ -20,13 +20,32 @@ async function autoArchiveEvent(eventId) {
         args: [eventId]
     });
 
+    const finesResult = await db.execute({
+        sql: 'SELECT user_id, amount FROM fines WHERE event_id = ?',
+        args: [eventId]
+    });
+
     // Settlement calculation (same as events.js archive)
     const balances = expenses.map(u => ({ user_id: u.user_id, balance: (u.amount || 0) - perHead }));
+    
+    // Apply explicit debts
     for (const debt of debtsResult.rows) {
         const cr = balances.find(b => b.user_id == debt.creditor_id);
         const dr = balances.find(b => b.user_id == debt.debtor_id);
         if (cr && dr) { cr.balance += debt.amount; dr.balance -= debt.amount; }
     }
+
+    // Apply fines
+    for (const fine of finesResult.rows) {
+        const finedUser = balances.find(b => b.user_id == fine.user_id);
+        if (finedUser) {
+            const otherUsers = balances.filter(b => b.user_id != fine.user_id);
+            const perUserDiscount = otherUsers.length > 0 ? fine.amount / otherUsers.length : 0;
+            finedUser.balance -= fine.amount;
+            otherUsers.forEach(u => u.balance += perUserDiscount);
+        }
+    }
+
     const debtors = balances.filter(b => b.balance < -0.01).sort((a,b) => a.balance - b.balance);
     const creditors = balances.filter(b => b.balance > 0.01).sort((a,b) => b.balance - a.balance);
     const settlements = [];
@@ -74,6 +93,7 @@ router.get('/current', async (req, res) => {
         event: null,
         expenses: [],
         explicitDebts: [],
+        fines: [],
         stats: { total: 0, users_count: 0, per_head: 0 },
         lastEvent: lastEvent ? {
           id: lastEvent.id,
@@ -118,12 +138,24 @@ router.get('/current', async (req, res) => {
       debtor_id: d.debtor_id,
       amount: d.amount
     }));
+
+    const finesResult = await db.execute({
+      sql: 'SELECT id, user_id, amount, fined_by FROM fines WHERE event_id = ?',
+      args: [activeEvent.id]
+    });
+    const fines = finesResult.rows.map(f => ({
+      id: f.id,
+      user_id: f.user_id,
+      amount: f.amount,
+      fined_by: f.fined_by
+    }));
     
     res.json({
       active: true,
       event: activeEvent,
       expenses: result,
       explicitDebts,
+      fines,
       stats: { total, users_count: userCount, per_head: perHead }
     });
   } catch (error) {

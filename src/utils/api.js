@@ -51,6 +51,11 @@ export const api = {
   explicitDebts: {
     update: (creditor_id, debtor_id, amount) => fetchJson('/explicit-debts/update', { method: 'POST', body: JSON.stringify({ creditor_id, debtor_id, amount }) }),
   },
+  fines: {
+    forEvent: (eventId) => fetchJson(`/fines/event/${eventId}`),
+    add: (user_id, amount, fined_by) => fetchJson('/fines/add', { method: 'POST', body: JSON.stringify({ user_id, amount, fined_by }) }),
+    remove: (id) => fetchJson(`/fines/${id}`, { method: 'DELETE' }),
+  },
   notifications: {
     subscribe: (user_id, subscription) => fetchJson('/notifications/subscribe', { method: 'POST', body: JSON.stringify({ user_id, subscription }) }),
     unsubscribe: (endpoint) => fetchJson('/notifications/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint }) }),

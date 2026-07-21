@@ -171,7 +171,8 @@ function navigateTo(view, params = {}) {
 
   // Forceful install popup check for any page after lockscreen
   if (view !== 'lock') {
-      if (!isPwa() || (!('Notification' in window) || Notification.permission !== 'granted')) {
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (!isLocalhost && (!isPwa() || (!('Notification' in window) || Notification.permission !== 'granted'))) {
           showForcefulInstallModal();
       }
   }

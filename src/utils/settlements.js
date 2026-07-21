@@ -4,8 +4,9 @@ import { userStore } from './userStore.js';
 /**
  * Pure logic to calculate who pays who
  * explicitDebts: [{ creditor_id, debtor_id, amount }]
+ * fines: [{ user_id, amount }]
  */
-export function calculateSettlements(expenses, perHead, explicitDebts = []) {
+export function calculateSettlements(expenses, perHead, explicitDebts = [], fines = []) {
     const balances = expenses.map(u => ({
         user_id: u.user_id,
         // Name/Avatar removed from calculation logic, resolved at render time
@@ -20,6 +21,17 @@ export function calculateSettlements(expenses, perHead, explicitDebts = []) {
         if (creditor && debtor) {
             creditor.balance += debt.amount;
             debtor.balance -= debt.amount;
+        }
+    }
+
+    // Apply fines as balance adjustments
+    for (const fine of fines) {
+        const finedUser = balances.find(b => b.user_id == fine.user_id);
+        if (finedUser) {
+            const otherUsers = balances.filter(b => b.user_id != fine.user_id);
+            const perUserDiscount = otherUsers.length > 0 ? fine.amount / otherUsers.length : 0;
+            finedUser.balance -= fine.amount;
+            otherUsers.forEach(u => u.balance += perUserDiscount);
         }
     }
 
