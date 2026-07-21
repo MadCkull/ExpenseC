@@ -916,7 +916,7 @@ export function createUserDashboard({ role, onLogout }) {
       modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:9999; display:flex; align-items:flex-end; justify-content:center; opacity:0; transition:opacity 0.3s;';
       
       modal.innerHTML = `
-        <div class="ios-card w-full safe-area-bottom" style="width: 100%; max-width: 500px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); padding: 0; background: var(--ios-card-bg); border-bottom-left-radius: 0; border-bottom-right-radius: 0; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+        <div class="ios-card w-full safe-area-bottom" style="width: 100%; max-width: 500px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); padding: 12px; background: var(--ios-card-bg); border-bottom-left-radius: 0; border-bottom-right-radius: 0; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
            <div class="flex justify-between items-center p-6 border-b border-white/5 relative">
               <h3 class="text-xl font-bold m-0" style="background: linear-gradient(135deg, #fff, #aaa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Expense History</h3>
               <button id="close-history-btn" style="width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.1); border: none; color: white; display:flex; align-items:center; justify-content:center; cursor: pointer;">
