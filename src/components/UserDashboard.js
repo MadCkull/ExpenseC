@@ -255,9 +255,14 @@ export function createUserDashboard({ role, onLogout }) {
                  <div style="height: 1px; background: rgba(255,255,255,0.06); margin: 20px 0 16px 0;"></div>
                  <div class="text-[10px] text-secondary uppercase tracking-wider font-bold mb-3 text-center" style="opacity: 0.7;">Your Settlements</div>
                  
-                     <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; justify-content: center; scrollbar-width: none; -webkit-overflow-scrolling: touch;">
+                 <div id="settlements-blur-container" style="position: relative; width: 100%; display: flex; justify-content: center;">
+                     <div id="settlements-blur-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 10; color: white; font-weight: bold; font-size: 11px; pointer-events: none; text-transform: uppercase; letter-spacing: 1px; transition: opacity 0.2s ease;">
+                        <i class="fa-solid fa-hand-pointer" style="margin-right: 6px;"></i> Hold to Show
+                     </div>
+                     <div id="settlements-blur-content" style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; justify-content: center; scrollbar-width: none; -webkit-overflow-scrolling: touch; filter: blur(5px); transition: filter 0.15s ease; width: 100%;">
                         ${itemsHtml}
                      </div>
+                 </div>
               `;
           }
       }
@@ -275,13 +280,20 @@ export function createUserDashboard({ role, onLogout }) {
 
       return `
         <div id="summary-card-wrapper" class="mb-4" style="background: transparent; border-radius: 0; padding: 0;">
-           <div id="summary-card-capture" class="ios-card fade-in" style="background: linear-gradient(145deg, rgba(10, 132, 255, 0.08), rgba(94, 92, 230, 0.06), rgba(0,0,0,0.3)); border: 1px solid rgba(10, 132, 255, 0.2); padding: 24px 20px; position: relative; overflow: hidden; border-radius: 24px;">
+           <div id="summary-card-capture" class="ios-card fade-in" 
+                onmousedown="const c=document.getElementById('settlements-blur-content'); const o=document.getElementById('settlements-blur-overlay'); if(c)c.style.filter='blur(0)'; if(o)o.style.opacity='0';"
+                ontouchstart="const c=document.getElementById('settlements-blur-content'); const o=document.getElementById('settlements-blur-overlay'); if(c)c.style.filter='blur(0)'; if(o)o.style.opacity='0';"
+                onmouseup="const c=document.getElementById('settlements-blur-content'); const o=document.getElementById('settlements-blur-overlay'); if(c)c.style.filter='blur(5px)'; if(o)o.style.opacity='1';"
+                ontouchend="const c=document.getElementById('settlements-blur-content'); const o=document.getElementById('settlements-blur-overlay'); if(c)c.style.filter='blur(5px)'; if(o)o.style.opacity='1';"
+                onmouseleave="const c=document.getElementById('settlements-blur-content'); const o=document.getElementById('settlements-blur-overlay'); if(c)c.style.filter='blur(5px)'; if(o)o.style.opacity='1';"
+                style="background: linear-gradient(145deg, rgba(10, 132, 255, 0.08), rgba(94, 92, 230, 0.06), rgba(0,0,0,0.3)); border: 1px solid rgba(10, 132, 255, 0.2); padding: 24px 20px; position: relative; overflow: hidden; border-radius: 24px; -webkit-user-select: none; user-select: none;">
               
               <div style="position: absolute; top: -40px; right: -40px; width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, rgba(10, 132, 255, 0.08), transparent); pointer-events: none;"></div>
 
            <!-- Share Button (Bottom Right) -->
-           <button id="share-summary-btn" style="position: absolute; bottom: 16px; right: 16px; color: var(--ios-blue); background: rgba(10, 132, 255, 0.1); border: 1px solid rgba(10, 132, 255, 0.3); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; z-index: 20; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+           <button id="share-summary-btn" style="position: absolute; bottom: 16px; right: 16px; color: var(--ios-blue); background: rgba(10, 132, 255, 0.1); border: 1px solid rgba(10, 132, 255, 0.3); border-radius: 20px; padding: 0 12px; height: 36px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: background 0.2s; z-index: 20; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
               <i class="fa-solid fa-share-from-square text-[14px] text-white opacity-90" style="margin: 1px -2px 0 0;"></i>
+              <span class="text-white text-[11px] font-bold opacity-90">WhatsApp</span>
            </button>
 
            <!-- Date Range (Bottom Left) -->
@@ -376,6 +388,12 @@ export function createUserDashboard({ role, onLogout }) {
               onclone: (clonedDoc) => {
                   const clonedCard = clonedDoc.getElementById('summary-card-capture');
                   if (!clonedCard) return;
+
+                  // 0. Remove blur for share
+                  const clonedBlurContent = clonedCard.querySelector('#settlements-blur-content');
+                  if (clonedBlurContent) clonedBlurContent.style.filter = 'blur(0)';
+                  const clonedBlurOverlay = clonedCard.querySelector('#settlements-blur-overlay');
+                  if (clonedBlurOverlay) clonedBlurOverlay.style.display = 'none';
 
                   // 1. Hide the share button in the capture
                   const clonedShareBtn = clonedCard.querySelector('#share-summary-btn');
