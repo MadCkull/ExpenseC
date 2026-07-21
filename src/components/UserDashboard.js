@@ -459,7 +459,7 @@ export function createUserDashboard({ role, onLogout }) {
                   </div>
               </div>
               <!-- Expense Input Area - 3 states -->
-              <div id="expense-input-area" data-userid="${user.user_id}" data-amount="${currentAmount}" style="display: flex; align-items: center; gap: 6px;">
+              <div id="expense-input-area" data-userid="${user.user_id}" data-amount="${currentAmount}" style="display: flex; align-items: center; gap: 6px; justify-content;">
                  <!-- Add-mode: slid-out current amount (hidden by default) -->
                  <div id="expense-slid-amount" style="display: none; align-items: center; gap: 4px; opacity: 0; transform: translateX(10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);">
                      <span id="expense-slid-amount-text" style="font-size: 16px; font-weight: 700; color: var(--ios-text-secondary); white-space: nowrap; transition: font-size 0.2s ease;">${displayAmount}</span>
